@@ -88,7 +88,13 @@ export class InvidiousSearchProvider {
       throw new Error(err.error || `Stream-Fehler: HTTP ${res.status}`);
     }
     const data = await res.json();
-    return data.streamUrl; // proxy returns { streamUrl: '...' }
+    // The proxy may return a relative URL (e.g. /api/audio?...); resolve it
+    // against the proxy base so the browser targets the proxy, not the app host.
+    const streamUrl = data.streamUrl;
+    if (streamUrl && streamUrl.startsWith('/')) {
+      return `${this.#proxyBaseUrl}${streamUrl}`;
+    }
+    return streamUrl;
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
@@ -131,9 +137,23 @@ export class InvidiousSearchProvider {
 
   /**
    * Tries each Invidious instance until one succeeds.
+   *
+   * When a proxy server is configured, the request is routed through it
+   * (`<proxy>/api/invidious?path=...`). This avoids browser CORS failures,
+   * since public Invidious instances do not send `Access-Control-Allow-Origin`.
    * @param {string} path  - API path starting with /
    */
   async #fetchFromAnyInstance(path) {
+    if (this.#proxyBaseUrl) {
+      const url = `${this.#proxyBaseUrl}/api/invidious?path=${encodeURIComponent(path)}`;
+      const res = await this.#fetchWithTimeout(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Suche fehlgeschlagen: HTTP ${res.status}`);
+      }
+      return await res.json();
+    }
+
     let lastError;
     for (const base of INVIDIOUS_INSTANCES) {
       try {

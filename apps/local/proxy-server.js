@@ -26,11 +26,17 @@ import path     from 'path';
 import { fileURLToPath } from 'url';
 import { execFile }      from 'child_process';
 import { promisify }     from 'util';
+import fs                from 'fs';
+import os                from 'os';
 
 const execFileAsync = promisify(execFile);
 const __dirname     = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
+
+// Temp directory where audio-only tracks are cached before being served.
+const AUDIO_CACHE_DIR = path.join(os.tmpdir(), 'tube-audio-cache');
+fs.mkdirSync(AUDIO_CACHE_DIR, { recursive: true });
 
 const INVIDIOUS_INSTANCES = [
   'https://invidious.nerdvpn.de',
@@ -63,46 +69,84 @@ app.get('/api/stream', async (req, res) => {
     return res.status(400).json({ error: 'Ungültige videoId.' });
   }
 
-  const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  // Return a *proxied* URL. The browser fetches audio bytes through /api/audio,
+  // which downloads the audio-only track once and serves it with range support.
+  // (No video is ever fetched — audio-only, F-10 / NF-05 compliant.)
+  res.json({ streamUrl: `/api/audio?videoId=${encodeURIComponent(videoId)}` });
+});
+
+// ─── /api/audio ───────────────────────────────────────────────────────────────
+// Downloads the audio-only track once to a temp file (via yt-dlp) and serves it
+// as a static file with Express range support. Downloading once avoids the
+// googlevideo CDN/session inconsistency that breaks progressive <audio> seeking.
+const audioDownloads = new Map(); // videoId -> Promise<string filePath>
+
+async function ensureAudioFile(videoId) {
+  const existing = audioDownloads.get(videoId);
+  if (existing) return existing;
+
+  const p = (async () => {
+    const outPath = path.join(AUDIO_CACHE_DIR, `${videoId}.m4a`);
+    if (fs.existsSync(outPath) && fs.statSync(outPath).size > 0) return outPath;
+
+    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    // Audio-only (F-10 / NF-05). m4a/AAC has the broadest real-browser support
+    // (incl. Safari/iOS). Downloading once avoids googlevideo CDN inconsistency.
+    await execFileAsync('yt-dlp', [
+      '--format', 'bestaudio[ext=m4a]/bestaudio/best',
+      '--extract-audio',
+      '--audio-format', 'm4a',
+      '--no-playlist',
+      '--no-check-certificates',
+      '--quiet',
+      '--no-warnings',
+      '-o', path.join(AUDIO_CACHE_DIR, `${videoId}.%(ext)s`),
+      ytUrl,
+    ], { timeout: 120000, maxBuffer: 20 * 1024 * 1024 });
+
+    if (!fs.existsSync(outPath)) {
+      // yt-dlp may have produced a different extension; find it.
+      const found = fs.readdirSync(AUDIO_CACHE_DIR).find(f => f.startsWith(videoId + '.'));
+      if (found) return path.join(AUDIO_CACHE_DIR, found);
+      throw new Error('Audiodatei wurde nicht erzeugt.');
+    }
+    return outPath;
+  })();
+
+  audioDownloads.set(videoId, p);
+  try {
+    return await p;
+  } catch (err) {
+    audioDownloads.delete(videoId); // allow retry on failure
+    throw err;
+  }
+}
+
+app.get('/api/audio', async (req, res) => {
+  const videoId = req.query.videoId?.trim();
+
+  if (!videoId || !/^[A-Za-z0-9_-]{6,15}$/.test(videoId)) {
+    return res.status(400).json({ error: 'Ungültige videoId.' });
+  }
 
   try {
-    // yt-dlp: extract AUDIO ONLY stream URL — no video download, no storage (NF-05)
-    const { stdout } = await execFileAsync('yt-dlp', [
-      '--format', 'bestaudio[ext=m4a]/bestaudio/best',
-      '--get-url',
-      '--no-playlist',
-      '--quiet',
-      ytUrl,
-    ], { timeout: 15000 });
-
-    const streamUrl = stdout.trim().split('\n')[0];
-
-    if (!streamUrl || !streamUrl.startsWith('http')) {
-      return res.status(502).json({ error: 'Stream-URL konnte nicht aufgelöst werden.' });
-    }
-
-    // Return URL to browser — browser plays it via <audio> (audio-only, F-10 compliant)
-    res.json({ streamUrl });
-  } catch (err) {
-    console.error('[/api/stream] yt-dlp error:', err.message);
-
-    if (err.message.includes('not found') || err.code === 'ENOENT') {
-      return res.status(503).json({
-        error: 'yt-dlp ist nicht installiert. Bitte installieren: https://github.com/yt-dlp/yt-dlp',
-      });
-    }
-    if (err.killed || err.signal === 'SIGTERM') {
-      return res.status(504).json({ error: 'Stream-Auflösung hat zu lange gedauert.' });
-    }
-
-    res.status(502).json({
-      error: 'Inhalt nicht verfügbar oder gesperrt. Nächsten Titel versuchen.',
+    const filePath = await ensureAudioFile(videoId);
+    const ct = filePath.endsWith('.webm') ? 'audio/webm'
+             : filePath.endsWith('.m4a')  ? 'audio/mp4'
+             : 'application/octet-stream';
+    // express handles Range requests, content-type and caching consistently.
+    res.sendFile(filePath, {
+      headers: { 'Content-Type': ct, 'Accept-Ranges': 'bytes' },
     });
+  } catch (err) {
+    console.error('[/api/audio] error:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Audio konnte nicht gestreamt werden.' });
+    }
   }
 });
 
 // ─── /api/search (Invidious proxy fallback) ───────────────────────────────────
-
 app.get('/api/search', async (req, res) => {
   const q    = req.query.q?.trim();
   const type = ['video', 'playlist', 'all'].includes(req.query.type) ? req.query.type : 'video';
@@ -124,7 +168,86 @@ app.get('/api/search', async (req, res) => {
   res.status(502).json({ error: 'Alle Suchdienste nicht erreichbar.' });
 });
 
-// ─── Health check ─────────────────────────────────────────────────────────────
+// ─── /api/invidious (generic server-side passthrough) ─────────────────────────
+// The browser calls: /api/invidious?path=/api/v1/search?q=...
+app.get('/api/invidious', async (req, res) => {
+  const rawPath = req.query.path?.trim();
+
+  // Only allow safe, read-only Invidious v1 API paths.
+  if (!rawPath || !rawPath.startsWith('/api/v1/') || rawPath.includes('..')) {
+    return res.status(400).json({ error: 'Ungültiger API-Pfad.' });
+  }
+
+  // Public Invidious instances now block anonymous /search (HTTP 401), so serve
+  // video search results via yt-dlp instead — shaped like the Invidious API.
+  const searchMatch = rawPath.match(/^\/api\/v1\/search\?(.*)$/);
+  if (searchMatch) {
+    const qp = new URLSearchParams(searchMatch[1]);
+    const type = qp.get('type') || 'video';
+    if (type === 'playlist') {
+      // Playlist search is not supported via yt-dlp here; return empty set.
+      return res.json([]);
+    }
+    try {
+      const results = await ytSearch(qp.get('q') || '', 25);
+      return res.json(results);
+    } catch (err) {
+      console.error('[/api/invidious] yt-dlp search error:', err.message);
+      return res.status(502).json({ error: 'Suche fehlgeschlagen.' });
+    }
+  }
+
+  for (const base of INVIDIOUS_INSTANCES) {
+    try {
+      const r = await fetch(base + rawPath, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) continue;
+      const data = await r.json();
+      return res.json(data);
+    } catch { /* try next instance */ }
+  }
+
+  res.status(502).json({ error: 'Alle Suchdienste nicht erreichbar.' });
+});
+
+/**
+ * Search YouTube via yt-dlp and return Invidious-API-shaped video results.
+ * @param {string} query
+ * @param {number} limit
+ * @returns {Promise<Array>}
+ */
+async function ytSearch(query, limit = 25) {
+  const q = (query || '').trim();
+  if (!q) return [];
+
+  const { stdout } = await execFileAsync('yt-dlp', [
+    `ytsearch${limit}:${q}`,
+    '--flat-playlist',
+    '--dump-json',
+    '--no-warnings',
+    '--no-check-certificates',
+    '--quiet',
+  ], { timeout: 25000, maxBuffer: 20 * 1024 * 1024 });
+
+  return stdout
+    .split('\n')
+    .filter(Boolean)
+    .map(line => {
+      try { return JSON.parse(line); } catch { return null; }
+    })
+    .filter(e => e && e.id)
+    .map(e => ({
+      type: 'video',
+      videoId: e.id,
+      title: e.title || '(ohne Titel)',
+      author: e.channel || e.uploader || '',
+      authorId: e.channel_id || e.uploader_id || '',
+      lengthSeconds: Math.round(e.duration || 0),
+      videoThumbnails: [
+        { quality: 'medium', url: `https://i.ytimg.com/vi/${e.id}/mqdefault.jpg`, width: 320, height: 180 },
+        { quality: 'default', url: `https://i.ytimg.com/vi/${e.id}/default.jpg`, width: 120, height: 90 },
+      ],
+    }));
+}
 
 app.get('/api/health', async (req, res) => {
   res.json({ status: 'ok', version: '0.1.0', ytdlp: await checkYtDlp() });

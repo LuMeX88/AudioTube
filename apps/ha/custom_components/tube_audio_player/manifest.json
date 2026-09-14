@@ -2,9 +2,9 @@
   "domain": "tube_audio_player",
   "name": "Tube Audio Player",
   "version": "0.1.0",
-  "documentation": "https://github.com/your-repo/tube-audio-player",
+  "documentation": "https://github.com/LuMeX88/AudioTube",
   "requirements": [],
-  "dependencies": ["sonos"],
+  "dependencies": ["frontend"],
   "codeowners": [],
   "iot_class": "local_polling",
   "homeassistant": "2024.1.0"

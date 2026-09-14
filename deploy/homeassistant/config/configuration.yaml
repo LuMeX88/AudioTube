@@ -1,16 +1,11 @@
 # Minimal Home Assistant config for testing Tube Audio Player.
 default_config:
 
-# Allow the app (served from /local) to run inside an iframe panel and
-# permit the HA frontend to be embedded / talk to localhost during testing.
+# Allow the app (served from /local) to run inside an iframe panel.
 http:
   use_x_frame_options: false
 
-# Sidebar entry that loads the shared browser app served from /config/www.
-# URL maps to: <config>/www/tube_audio_player/apps/local/index.html
-panel_iframe:
-  tube_audio:
-    title: "Tube Audio"
-    icon: mdi:music-note
-    url: "/local/tube_audio_player/apps/local/index.html"
-    require_admin: false
+# The "Tube Audio" sidebar panel is registered by the custom integration
+# `tube_audio_player` (custom_components/), which loads the app from:
+#   /local/tube_audio_player/apps/local/index.html
+tube_audio_player:
