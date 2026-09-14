@@ -17,7 +17,7 @@ const INVIDIOUS_INSTANCES = [
   'https://invidious.fdn.fr',
 ];
 
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_RESULTS = 30;
 
 export class InvidiousSearchProvider {
