@@ -4,8 +4,9 @@
  * then renders the UI.
  */
 import { config }                   from './config.js';
-import { LocalStorageAdapter }      from '../../../src/adapters/local/LocalStorageAdapter.js';
+import { LocalStorageAdapter }      from '../../../src/adapters/local/LocalStorageAdapter.js?v=20260914-3';
 import { LocalPlaybackAdapter }     from '../../../src/adapters/local/LocalPlaybackAdapter.js';
+import { HAPlaybackAdapter }        from './HAPlaybackAdapter.js?v=20260914-12';
 import { InvidiousSearchProvider }  from '../../../src/core/search/InvidiousSearchProvider.js';
 import { SearchClient }             from '../../../src/core/search/SearchClient.js';
 import { AppController }            from './AppController.js';
@@ -26,7 +27,10 @@ async function bootstrap() {
   const searchClient      = new SearchClient(invidiousProvider, aiCfg);
 
   // 3. Instantiate playback adapter
-  const playbackAdapter = new LocalPlaybackAdapter(
+  const PlaybackAdapter = location.pathname.startsWith('/local/tube_audio_player/')
+    ? HAPlaybackAdapter
+    : LocalPlaybackAdapter;
+  const playbackAdapter = new PlaybackAdapter(
     (videoId) => searchClient.getAudioStreamUrl(videoId)
   );
 

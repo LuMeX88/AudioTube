@@ -7,7 +7,9 @@
  */
 export const config = {
   /** URL of the local proxy / dev server (proxy-server.js) */
-  proxyBaseUrl: 'http://localhost:3001',
+  // The Sonos speaker must be able to reach this URL; localhost would refer
+  // to the speaker itself when HA sends it the audio stream URL.
+  proxyBaseUrl: 'http://192.168.178.83:3001',
 
   /**
    * OpenAI-compatible AI endpoint.

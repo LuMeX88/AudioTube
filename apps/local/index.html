@@ -14,8 +14,8 @@
           script-src  'self';
           style-src   'self' 'unsafe-inline';
           img-src     'self' https: data:;
-          media-src   'self' https: blob: http://localhost:3001;
-          connect-src 'self' https: http://localhost:3001;
+          media-src   'self' https: blob: http://localhost:3001 http://192.168.178.83:3001;
+          connect-src 'self' https: http://localhost:3001 http://192.168.178.83:3001;
           frame-src   'none';
           object-src  'none';
         " />
@@ -37,6 +37,6 @@
 
     No YouTube API key · No login · No video playback (CSP enforced)
   -->
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=20260914-12"></script>
 </body>
 </html>

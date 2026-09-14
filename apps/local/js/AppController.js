@@ -37,13 +37,25 @@ export class AppController {
       this.#search.updateAiConfig(settings.ai);
     }
 
-    // Load speakers
-    await this.refreshSpeakers();
+    // Do not block the whole app on HA/Sonos discovery. The UI remains usable
+    // while the iframe websocket authenticates or reports an error.
+    try {
+      await Promise.race([
+        this.refreshSpeakers(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Lautsprecher-Erkennung timeout.')), 5000)),
+      ]);
+    } catch (err) {
+      console.warn('[AppController] Speaker discovery unavailable:', err.message);
+      appState.set({ speakers: [] });
+    }
 
     // Select first available speaker
     const speakers = appState.get('speakers');
     const first = speakers.find(s => s.isAvailable);
-    if (first) appState.set({ selectedSpeakerId: first.id });
+    if (first) {
+      await this.#playback.selectSpeaker(first.id);
+      appState.set({ selectedSpeakerId: first.id });
+    }
 
     // Listen to playback state from adapter
     this.#playback.onStateChange(ps => {

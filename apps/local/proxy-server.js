@@ -72,7 +72,7 @@ app.get('/api/stream', async (req, res) => {
   // Return a *proxied* URL. The browser fetches audio bytes through /api/audio,
   // which downloads the audio-only track once and serves it with range support.
   // (No video is ever fetched — audio-only, F-10 / NF-05 compliant.)
-  res.json({ streamUrl: `/api/audio?videoId=${encodeURIComponent(videoId)}` });
+  res.json({ streamUrl: `/api/audio/${encodeURIComponent(videoId)}.mp3` });
 });
 
 // ─── /api/audio ───────────────────────────────────────────────────────────────
@@ -86,16 +86,15 @@ async function ensureAudioFile(videoId) {
   if (existing) return existing;
 
   const p = (async () => {
-    const outPath = path.join(AUDIO_CACHE_DIR, `${videoId}.m4a`);
+    const outPath = path.join(AUDIO_CACHE_DIR, `${videoId}.mp3`);
     if (fs.existsSync(outPath) && fs.statSync(outPath).size > 0) return outPath;
 
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    // Audio-only (F-10 / NF-05). m4a/AAC has the broadest real-browser support
-    // (incl. Safari/iOS). Downloading once avoids googlevideo CDN inconsistency.
+    // MP3 has the broadest Sonos S1 compatibility and avoids UPnP MIME errors.
     await execFileAsync('yt-dlp', [
-      '--format', 'bestaudio[ext=m4a]/bestaudio/best',
+      '--format', 'bestaudio/best',
       '--extract-audio',
-      '--audio-format', 'm4a',
+      '--audio-format', 'mp3',
       '--no-playlist',
       '--no-check-certificates',
       '--quiet',
@@ -122,8 +121,8 @@ async function ensureAudioFile(videoId) {
   }
 }
 
-app.get('/api/audio', async (req, res) => {
-  const videoId = req.query.videoId?.trim();
+app.get(['/api/audio', '/api/audio/:videoId.mp3'], async (req, res) => {
+  const videoId = (req.params.videoId || req.query.videoId)?.trim();
 
   if (!videoId || !/^[A-Za-z0-9_-]{6,15}$/.test(videoId)) {
     return res.status(400).json({ error: 'Ungültige videoId.' });
@@ -131,8 +130,9 @@ app.get('/api/audio', async (req, res) => {
 
   try {
     const filePath = await ensureAudioFile(videoId);
-    const ct = filePath.endsWith('.webm') ? 'audio/webm'
-             : filePath.endsWith('.m4a')  ? 'audio/mp4'
+    const ct = filePath.endsWith('.mp3')  ? 'audio/mpeg'
+         : filePath.endsWith('.webm') ? 'audio/webm'
+         : filePath.endsWith('.m4a')  ? 'audio/mp4'
              : 'application/octet-stream';
     // express handles Range requests, content-type and caching consistently.
     res.sendFile(filePath, {
