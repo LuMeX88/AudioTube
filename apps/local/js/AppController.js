@@ -167,6 +167,10 @@ export class AppController {
 
   async setVolume(level) { await this.#playback.setVolume(level); }
 
+  async seek(positionSec) {
+    if (this.#playback.seek) await this.#playback.seek(positionSec);
+  }
+
   async selectSpeaker(id) {
     try {
       await this.#playback.selectSpeaker(id);

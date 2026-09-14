@@ -108,14 +108,16 @@ export class HAPlaybackAdapter {
 
   async play(track) {
     if (!this.#selectedSpeakerId) throw new Error('Kein Lautsprecher ausgewählt.');
+    this.#lastRemoteStatus = 'playing';
     this.#patchState({ status: 'loading', currentTrack: track });
     const streamUrl = await this.#streamUrlResolver(track.id);
-    await this.#apiRequest('/api/services/media_player/play_media', {
+    await this.#apiRequest('/api/services/tube_audio_player/play_media', {
       method: 'POST',
       body: JSON.stringify({
         entity_id: this.#selectedSpeakerId,
-        media_content_id: streamUrl,
-        media_content_type: 'music',
+        media_url: streamUrl,
+        title: track.title,
+        artist: track.artist,
       }),
     });
     this.#patchState({ status: 'playing' });
@@ -135,6 +137,11 @@ export class HAPlaybackAdapter {
   async setVolume(level) {
     await this.#callService('volume_set', { volume_level: Math.max(0, Math.min(100, level)) / 100 });
     this.#patchState({ volume: level });
+  }
+
+  async seek(positionSec) {
+    await this.#callService('media_seek', { seek_position: Math.max(0, positionSec) });
+    this.#patchState({ positionSec: Math.max(0, positionSec) });
   }
 
   async #callService(service, serviceData = {}) {

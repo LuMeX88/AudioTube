@@ -96,6 +96,11 @@ export class LocalPlaybackAdapter {
     this.#patchState({ volume: clamped });
   }
 
+  async seek(positionSec) {
+    this.#audio.currentTime = Math.max(0, Math.min(positionSec, this.#audio.duration || positionSec));
+    this.#patchState({ positionSec: this.#audio.currentTime });
+  }
+
   onStateChange(cb) {
     this.#stateCallbacks.add(cb);
     // Immediately emit current state

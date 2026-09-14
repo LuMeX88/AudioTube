@@ -81,8 +81,18 @@ export function renderPlayerBar(container, ctrl) {
   progressBar.addEventListener('mousedown', () => { isScrubbing = true; });
   progressBar.addEventListener('mouseup', () => {
     isScrubbing = false;
-    // NOTE: seek not implemented in MVP (requires server-side stream seeking)
+    seekToProgress();
   });
+  progressBar.addEventListener('touchend', () => {
+    isScrubbing = false;
+    seekToProgress();
+  });
+  progressBar.addEventListener('change', seekToProgress);
+
+  function seekToProgress() {
+    const duration = appState.get('playback').durationSec;
+    if (duration > 0) ctrl.seek((Number(progressBar.value) / 100) * duration);
+  }
 
   // Volume
   volumeSlider.addEventListener('input', () => {
