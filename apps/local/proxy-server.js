@@ -92,6 +92,7 @@ async function ensureAudioFile(videoId) {
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
     // MP3 has the broadest Sonos S1 compatibility and avoids UPnP MIME errors.
     await execFileAsync('yt-dlp', [
+      '--extractor-args', 'youtube:player_client=android',
       '--format', 'bestaudio/best',
       '--extract-audio',
       '--audio-format', 'mp3',
@@ -221,8 +222,9 @@ async function ytSearch(query, limit = 25) {
 
   const { stdout } = await execFileAsync('yt-dlp', [
     `ytsearch${limit}:${q}`,
-    '--flat-playlist',
+    '--extractor-args', 'youtube:player_client=android',
     '--dump-json',
+    '--ignore-errors',
     '--no-warnings',
     '--no-check-certificates',
     '--quiet',
