@@ -4,6 +4,7 @@
 import { appState } from '../../../../src/core/state/AppState.js';
 import { t }        from '../../../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
+import { icon }     from './icons.js';
 
 export function renderQueue(container, ctrl) {
   container.innerHTML = `
@@ -35,7 +36,7 @@ export function renderQueue(container, ctrl) {
       <li class="queue-item ${i === current ? 'queue-item--active' : ''}"
           data-queue-id="${item.queueId}"
           aria-current="${i === current ? 'true' : 'false'}">
-        <span class="queue-index">${i === current ? '▶' : i + 1}</span>
+        <span class="queue-index">${i === current ? icon('play', 16) : i + 1}</span>
         <div class="queue-item-info">
           <p class="queue-item-title" title="${escHtml(item.track.title)}">${escHtml(item.track.title)}</p>
           <p class="queue-item-artist">${escHtml(item.track.artist)}</p>
@@ -44,11 +45,11 @@ export function renderQueue(container, ctrl) {
         <button class="btn-icon btn-skip-to"
                 data-queue-id="${item.queueId}"
                 aria-label="${t('play')} ${escHtml(item.track.title)}"
-                title="${t('play')}">▶</button>
+                title="${t('play')}">${icon('play', 18)}</button>
         <button class="btn-icon btn-remove-queue"
                 data-queue-id="${item.queueId}"
                 aria-label="${t('removeFromQueue')} ${escHtml(item.track.title)}"
-                title="${t('removeFromQueue')}">✕</button>
+                title="${t('removeFromQueue')}">${icon('close', 18)}</button>
       </li>
     `).join('');
 

@@ -23,7 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = "tube_audio_player"
 
 PANEL_URL_PATH = "tube-audio"
-PANEL_TITLE = "Tube Audio"
+PANEL_TITLE = "AudioTube"
 PANEL_ICON = "mdi:music-note"
 APP_URL = "/local/tube_audio_player/apps/local/index.html"
 

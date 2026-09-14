@@ -204,10 +204,9 @@ input, button, select { outline-offset: 2px; }
 }
 
 .result-card {
-  display: grid;
-  grid-template-columns: 72px 1fr auto;
-  grid-template-rows: auto auto;
-  gap: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: var(--clr-surface);
   border: 1px solid var(--clr-border);
   border-radius: var(--radius-md);
@@ -217,7 +216,7 @@ input, button, select { outline-offset: 2px; }
 }
 .result-card:hover { box-shadow: var(--shadow-md); border-color: var(--clr-accent); }
 
-.result-thumb-wrap { grid-row: 1 / 3; }
+.result-thumb-wrap { flex-shrink: 0; }
 .result-thumb {
   width: 72px;
   height: 54px;
@@ -236,7 +235,7 @@ input, button, select { outline-offset: 2px; }
   font-size: 1.6rem;
 }
 
-.result-info { min-width: 0; }
+.result-info { min-width: 0; flex: 1; }
 .result-title {
   font-weight: 600;
   font-size: .88rem;
@@ -256,11 +255,10 @@ input, button, select { outline-offset: 2px; }
 }
 
 .result-actions {
-  grid-row: 1 / 3;
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 /* ─── Icon buttons ───────────────────────────────────────────────────────── */
@@ -569,4 +567,186 @@ input, button, select { outline-offset: 2px; }
 @media (max-width: 480px) {
   .app-main { padding: 10px; }
   .nav-btn { padding: 5px 10px; font-size: .78rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Modern UX layer — SVG icons, thumbnail play overlay, language switch,
+   playlist picker. Appended so it overrides earlier rules where needed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* SVG icons inherit text color and align to the baseline of the button */
+.icon { display: block; fill: currentColor; flex-shrink: 0; }
+.btn-icon .icon,
+.btn-transport .icon,
+.logo-icon .icon,
+.speaker-icon .icon,
+.volume-icon .icon { pointer-events: none; }
+
+/* Icon buttons: larger hit area, clearer hover, focus ring */
+.btn-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--clr-text-sub);
+}
+.btn-icon:hover  { background: var(--clr-surface-2); color: var(--clr-accent); }
+.btn-icon:active { transform: scale(.92); }
+.btn-icon.active { color: #e0245e; }        /* filled heart */
+.btn-icon:focus-visible,
+.btn-transport:focus-visible,
+.nav-btn:focus-visible,
+.lang-btn:focus-visible {
+  outline: 2px solid var(--clr-accent);
+  outline-offset: 2px;
+}
+.btn-icon:disabled { opacity: .35; cursor: default; }
+
+/* Result actions become a neat horizontal toolbar */
+.result-actions {
+  flex-direction: row;
+  gap: 2px;
+  align-self: center;
+}
+
+/* Play button overlaid on the thumbnail (modern media-card pattern) */
+.result-thumb-wrap { position: relative; }
+.thumb-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(.8);
+  transition: opacity .15s, transform .15s, background .15s;
+  backdrop-filter: blur(2px);
+}
+.thumb-play:hover { background: var(--clr-accent); }
+.result-card:hover .thumb-play,
+.thumb-play:focus-visible { opacity: 1; transform: scale(1); }
+
+/* Language switch in the header */
+.lang-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border: 1px solid var(--clr-border);
+  border-radius: 20px;
+  background: var(--clr-surface-2);
+}
+.lang-icon { display: flex; color: var(--clr-text-sub); }
+.lang-btn {
+  border: none;
+  background: transparent;
+  color: var(--clr-text-sub);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .3px;
+  padding: 4px 8px;
+  border-radius: 14px;
+  transition: background .12s, color .12s;
+}
+.lang-btn:hover  { color: var(--clr-text); }
+.lang-btn.active { background: var(--clr-accent); color: var(--clr-accent-text); }
+
+/* Primary/secondary buttons: align icon + label */
+.btn-primary, .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-primary { box-shadow: var(--shadow-sm); }
+.btn-primary:hover { box-shadow: var(--shadow-md); }
+
+/* Transport play/pause emphasised as a solid accent circle */
+.btn-play-pause {
+  background: var(--clr-accent);
+  color: var(--clr-accent-text);
+  width: 44px;
+  height: 44px;
+}
+.btn-play-pause:hover { background: var(--clr-accent-dark); }
+.btn-play-pause:disabled { background: rgba(255,255,255,.15); }
+
+/* ─── Playlist picker modal ──────────────────────────────────────────────── */
+.picker-box { width: 380px; max-width: 92vw; }
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.picker-close { color: var(--clr-text-sub); }
+.picker-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .82rem;
+  color: var(--clr-text-sub);
+  margin: 4px 0 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.picker-track .icon { color: var(--clr-accent); }
+.picker-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 46vh;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.picker-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  background: var(--clr-surface);
+  color: var(--clr-text);
+  font-size: .9rem;
+  text-align: left;
+  transition: background .12s, border-color .12s;
+}
+.picker-item:hover:not(:disabled) { background: var(--clr-active); border-color: var(--clr-accent); }
+.picker-item.in-list { opacity: .7; cursor: default; }
+.picker-item.in-list .icon { color: var(--clr-success); }
+.picker-item-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-item-meta { display: flex; align-items: center; font-size: .75rem; color: var(--clr-text-sub); flex-shrink: 0; }
+.picker-empty { padding: 16px; text-align: center; color: var(--clr-text-sub); font-size: .85rem; }
+.picker-new {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 14px;
+  border: 1px dashed var(--clr-accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--clr-accent);
+  font-size: .88rem;
+  font-weight: 600;
+  transition: background .12s;
+}
+.picker-new:hover { background: var(--clr-active); }
+
+/* Queue index shows a play glyph when active */
+.queue-index .icon { color: var(--clr-active-text); margin: 0 auto; }
+
+@media (max-width: 700px) {
+  .lang-switch { padding: 2px 4px; }
+  .lang-btn { padding: 3px 6px; }
 }

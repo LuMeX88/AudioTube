@@ -3,7 +3,8 @@
  * @module apps/local/js/ui/App
  */
 import { appState }    from '../../../../src/core/state/AppState.js';
-import { t }           from '../../../../src/core/i18n/i18n.js';
+import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../../../src/core/i18n/i18n.js';
+import { icon }        from './icons.js';
 import { renderSearch }   from './SearchView.js';
 import { renderQueue }    from './QueueView.js';
 import { renderFavorites} from './FavoritesView.js';
@@ -17,17 +18,23 @@ export function renderApp(ctrl) {
     <div class="app-layout">
       <header class="app-header">
         <div class="app-logo">
-          <span class="logo-icon">🎵</span>
-          <span class="logo-text">Tube Audio Player</span>
+          <span class="logo-icon">${icon('music', 22)}</span>
+          <span class="logo-text">AudioTube</span>
         </div>
-        <nav class="app-nav" role="navigation" aria-label="Hauptnavigation">
+        <nav class="app-nav" role="navigation" aria-label="${t('navSearch')}">
           <button class="nav-btn active" data-view="search"    aria-label="${t('navSearch')}">${t('navSearch')}</button>
           <button class="nav-btn"        data-view="queue"     aria-label="${t('navQueue')}">${t('navQueue')}</button>
           <button class="nav-btn"        data-view="favorites" aria-label="${t('navFavorites')}">${t('navFavorites')}</button>
           <button class="nav-btn"        data-view="playlists" aria-label="${t('navPlaylists')}">${t('navPlaylists')}</button>
         </nav>
+        <div class="lang-switch" role="group" aria-label="${t('language')}">
+          <span class="lang-icon" aria-hidden="true">${icon('globe', 16)}</span>
+          ${availableLocales().map(loc => `
+            <button class="lang-btn ${loc === getLocale() ? 'active' : ''}" data-locale="${loc}"
+                    aria-pressed="${loc === getLocale()}">${loc.toUpperCase()}</button>`).join('')}
+        </div>
         <div class="speaker-badge" id="speakerBadge" role="button" tabindex="0" aria-label="${t('selectSpeaker')}">
-          <span class="speaker-icon">🔊</span>
+          <span class="speaker-icon">${icon('speaker', 16)}</span>
           <span id="speakerName">–</span>
         </div>
       </header>
@@ -63,6 +70,18 @@ export function renderApp(ctrl) {
 
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => navigate(btn.dataset.view));
+  });
+
+  // Language switch — re-render the whole app in the new locale
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.locale === getLocale()) return;
+      setLocale(btn.dataset.locale);
+    });
+  });
+  const offLocale = onLocaleChange(() => {
+    offLocale();          // avoid stacking listeners across re-renders
+    renderApp(ctrl);
   });
 
   // Speaker modal
@@ -102,10 +121,10 @@ function openSpeakerModal(modal, ctrl) {
                       data-id="${sp.id}"
                       ${!sp.isAvailable ? 'disabled' : ''}
                       aria-pressed="${sp.id === selected}">
-                <span class="speaker-type-icon">${sp.type === 'group' ? '👥' : '🔊'}</span>
+                <span class="speaker-type-icon">${icon(sp.type === 'group' ? 'speaker' : 'speaker', 18)}</span>
                 <span class="speaker-name">${sp.name}</span>
-                ${!sp.isAvailable ? '<span class="unavailable-badge">Nicht verfügbar</span>' : ''}
-                ${sp.id === selected ? '<span class="selected-badge">✓</span>' : ''}
+                ${!sp.isAvailable ? `<span class="unavailable-badge">${t('errorSpeaker')}</span>` : ''}
+                ${sp.id === selected ? `<span class="selected-badge">${icon('check', 16)}</span>` : ''}
               </button>
             </li>`).join('')
           : `<li class="no-speakers">${t('noSpeakers')}</li>`

@@ -4,6 +4,8 @@
 import { appState } from '../../../../src/core/state/AppState.js';
 import { t }        from '../../../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
+import { icon }     from './icons.js';
+import { openPlaylistPicker } from './PlaylistPicker.js';
 
 export function renderFavorites(container, ctrl) {
   container.innerHTML = `
@@ -26,7 +28,8 @@ export function renderFavorites(container, ctrl) {
         <div class="result-thumb-wrap">
           ${track.thumbnailUrl
             ? `<img src="${track.thumbnailUrl}" alt="${escHtml(track.title)}" loading="lazy" class="result-thumb">`
-            : `<div class="result-thumb result-thumb--placeholder">🎵</div>`}
+            : `<div class="result-thumb result-thumb--placeholder">${icon('music', 26)}</div>`}
+          <button class="thumb-play btn-play" data-id="${track.id}" title="${t('play')}" aria-label="${t('play')}">${icon('play', 22)}</button>
         </div>
         <div class="result-info">
           <p class="result-title">${escHtml(track.title)}</p>
@@ -34,9 +37,9 @@ export function renderFavorites(container, ctrl) {
           <span class="result-duration">${formatDuration(track.durationSec)}</span>
         </div>
         <div class="result-actions">
-          <button class="btn-icon btn-play"  data-id="${track.id}" title="${t('play')}">▶</button>
-          <button class="btn-icon btn-queue" data-id="${track.id}" title="${t('addToQueue')}">＋</button>
-          <button class="btn-icon btn-fav active" data-id="${track.id}" title="${t('removeFromFavorites')}">★</button>
+          <button class="btn-icon btn-queue" data-id="${track.id}" title="${t('addToQueue')}" aria-label="${t('addToQueue')}">${icon('queue')}</button>
+          <button class="btn-icon btn-addpl" data-id="${track.id}" title="${t('addToPlaylist')}" aria-label="${t('addToPlaylist')}">${icon('plusList')}</button>
+          <button class="btn-icon btn-fav active" data-id="${track.id}" title="${t('removeFromFavorites')}" aria-label="${t('removeFromFavorites')}">${icon('heartFill')}</button>
         </div>
       </article>
     `).join('');
@@ -48,6 +51,10 @@ export function renderFavorites(container, ctrl) {
     list.querySelectorAll('.btn-queue').forEach(btn => {
       const track = favs.find(f => f.id === btn.dataset.id);
       if (track) btn.addEventListener('click', () => ctrl.addToQueue({ ...track, type: 'track' }));
+    });
+    list.querySelectorAll('.btn-addpl').forEach(btn => {
+      const track = favs.find(f => f.id === btn.dataset.id);
+      if (track) btn.addEventListener('click', () => openPlaylistPicker(track, ctrl));
     });
     list.querySelectorAll('.btn-fav').forEach(btn => {
       const track = favs.find(f => f.id === btn.dataset.id);
