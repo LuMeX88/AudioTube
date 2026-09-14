@@ -1,70 +1,46 @@
 """
 Tube Audio Player — Home Assistant Custom Component
-Version A stub: registers a panel and provides a WebSocket API.
+===================================================
+Registers a sidebar **iframe panel** that loads the shared browser app
+served from HA's static `/local/` path (www folder).
 
-Directory structure (place in <config>/custom_components/tube_audio_player/):
-  __init__.py
-  manifest.json
-  panel/         ← symlink or copy of apps/local/ (shared UI)
+Modern HA removed the built-in `panel_iframe` YAML integration, so this
+component registers the same built-in "iframe" frontend panel directly.
 
-Sprint 1: minimal scaffold, panel registration, config entry.
-Sprint 2: full Sonos/media_player adapter, yt-dlp integration.
+App URL (served from <config>/www via the docker-compose mounts):
+  /local/tube_audio_player/apps/local/index.html
 """
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
-from homeassistant.components.panel_custom import async_register_panel
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components import frontend
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN        = "tube_audio_player"
-PANEL_URL     = "/tube-audio-player"
-PANEL_TITLE   = "Tube Audio"
-PANEL_ICON    = "mdi:music-note"
-PANEL_DIR     = Path(__file__).parent / "panel"
+DOMAIN = "tube_audio_player"
+
+PANEL_URL_PATH = "tube-audio"
+PANEL_TITLE = "Tube Audio"
+PANEL_ICON = "mdi:music-note"
+APP_URL = "/local/tube_audio_player/apps/local/index.html"
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the Tube Audio Player integration."""
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Tube Audio Player iframe panel."""
     hass.data.setdefault(DOMAIN, {})
-    return True
 
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Tube Audio Player from a config entry."""
-    _LOGGER.info("Setting up Tube Audio Player panel")
-
-    # Register the frontend panel (serves the HTML/JS/CSS app)
-    await async_register_panel(
+    frontend.async_register_built_in_panel(
         hass,
-        component_name="custom",
+        component_name="iframe",
         sidebar_title=PANEL_TITLE,
         sidebar_icon=PANEL_ICON,
-        frontend_url_path=PANEL_URL.lstrip("/"),
-        config={
-            "name": "tube-audio-player",
-            "embed_iframe": False,
-            "trust_external": False,
-            "js_url": f"/tube_audio_player/panel/js/main.js",
-        },
+        frontend_url_path=PANEL_URL_PATH,
+        config={"url": APP_URL},
         require_admin=False,
     )
 
-    # Store controller reference for WebSocket handlers
-    hass.data[DOMAIN]["entry"] = entry
-
-    # TODO Sprint 2: register WebSocket commands for speaker/playback control
-    # from .ws_api import async_register_ws_commands
-    # async_register_ws_commands(hass)
-
-    return True
-
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    hass.data[DOMAIN].pop("entry", None)
+    _LOGGER.info("Tube Audio Player panel registered at /%s", PANEL_URL_PATH)
     return True
