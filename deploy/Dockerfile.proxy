@@ -1,0 +1,23 @@
+# Proxy server for Tube Audio Player (Version B)
+# Provides /api/search (Invidious proxy) and /api/stream (yt-dlp audio resolver).
+FROM node:20-slim
+
+# yt-dlp needs a Python runtime; ffmpeg helps with some formats.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates python3 ffmpeg wget \
+ && wget -qO /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+ && chmod a+rx /usr/local/bin/yt-dlp \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install dependencies first for better layer caching.
+COPY apps/local/package.json ./
+RUN npm install --omit=dev
+
+# Copy the proxy server and static app assets.
+COPY apps/local/ ./
+
+EXPOSE 3001
+ENV PORT=3001
+CMD ["node", "proxy-server.js"]

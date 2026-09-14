@@ -1,0 +1,17 @@
+{
+  "name": "tube-audio-player-local",
+  "version": "0.1.0",
+  "description": "Local dev proxy server for Tube Audio Player (Version B)",
+  "type": "module",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev":   "node proxy-server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
