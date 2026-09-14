@@ -4,6 +4,7 @@
 import { appState } from '../../../../src/core/state/AppState.js';
 import { t }        from '../../../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
+import { icon }     from './icons.js';
 
 export function renderPlayerBar(container, ctrl) {
   container.innerHTML = `
@@ -11,7 +12,7 @@ export function renderPlayerBar(container, ctrl) {
       <!-- Now Playing -->
       <div class="now-playing">
         <div class="now-playing-thumb" id="nowThumb">
-          <span>🎵</span>
+          <span>${icon('music', 22)}</span>
         </div>
         <div class="now-playing-info">
           <p class="now-title"  id="nowTitle">${t('noTrack')}</p>
@@ -22,13 +23,13 @@ export function renderPlayerBar(container, ctrl) {
       <!-- Transport -->
       <div class="transport">
         <button class="btn-transport" id="btnPrev"
-                aria-label="${t('previous')}" title="${t('previous')}">⏮</button>
+                aria-label="${t('previous')}" title="${t('previous')}">${icon('prev', 22)}</button>
         <button class="btn-transport btn-play-pause" id="btnPlayPause"
-                aria-label="${t('play')}" title="${t('play')}">▶</button>
+                aria-label="${t('play')}" title="${t('play')}">${icon('play', 26)}</button>
         <button class="btn-transport" id="btnNext"
-                aria-label="${t('next')}" title="${t('next')}">⏭</button>
+                aria-label="${t('next')}" title="${t('next')}">${icon('next', 22)}</button>
         <button class="btn-transport" id="btnStop"
-                aria-label="${t('stop')}" title="${t('stop')}">⏹</button>
+                aria-label="${t('stop')}" title="${t('stop')}">${icon('stop', 20)}</button>
       </div>
 
       <!-- Progress -->
@@ -42,7 +43,7 @@ export function renderPlayerBar(container, ctrl) {
 
       <!-- Volume -->
       <div class="volume-area">
-        <span class="volume-icon" aria-hidden="true">🔊</span>
+        <span class="volume-icon" aria-hidden="true">${icon('volume', 18)}</span>
         <input type="range" class="volume-slider" id="volumeSlider"
                min="0" max="100" value="50"
                aria-label="${t('volume')}"/>
@@ -106,17 +107,17 @@ export function renderPlayerBar(container, ctrl) {
       if (track.thumbnailUrl) {
         nowThumb.innerHTML = `<img src="${track.thumbnailUrl}" alt="${escHtml(track.title)}" class="now-thumb-img">`;
       } else {
-        nowThumb.innerHTML = '<span>🎵</span>';
+        nowThumb.innerHTML = `<span>${icon('music', 22)}</span>`;
       }
     } else {
       nowTitle.textContent  = t('noTrack');
       nowArtist.textContent = '';
-      nowThumb.innerHTML    = '<span>🎵</span>';
+      nowThumb.innerHTML    = `<span>${icon('music', 22)}</span>`;
     }
 
     // Play/pause icon
     const isPlaying = ps.status === 'playing';
-    btnPlayPause.textContent   = isPlaying ? '⏸' : '▶';
+    btnPlayPause.innerHTML     = isPlaying ? icon('pause', 26) : icon('play', 26);
     btnPlayPause.setAttribute('aria-label', isPlaying ? t('pause') : t('play'));
     btnPlayPause.title          = isPlaying ? t('pause') : t('play');
 

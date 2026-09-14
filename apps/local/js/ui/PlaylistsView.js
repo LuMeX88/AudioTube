@@ -4,13 +4,14 @@
 import { appState } from '../../../../src/core/state/AppState.js';
 import { t }        from '../../../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
+import { icon }     from './icons.js';
 
 export function renderPlaylists(container, ctrl) {
   container.innerHTML = `
     <section class="playlists-view" aria-label="${t('playlists')}">
       <div class="view-header">
         <h2>${t('playlists')}</h2>
-        <button class="btn-primary" id="createPlaylistBtn">${t('createPlaylist')}</button>
+        <button class="btn-primary" id="createPlaylistBtn">${icon('add', 18)} ${t('createPlaylist')}</button>
       </div>
       <div id="playlistsContent" aria-live="polite"></div>
     </section>
@@ -37,10 +38,10 @@ export function renderPlaylists(container, ctrl) {
             <span class="playlist-count">${t('trackCount', pl.tracks.length)}</span>
           </div>
           <div class="playlist-actions">
-            <button class="btn-icon btn-play-pl"    data-id="${pl.id}" title="${t('playPlaylist')}">▶</button>
-            <button class="btn-icon btn-queue-pl"   data-id="${pl.id}" title="${t('addPlaylistToQueue')}">＋</button>
-            <button class="btn-icon btn-rename-pl"  data-id="${pl.id}" title="${t('renamePlaylist')}">✏</button>
-            <button class="btn-icon btn-delete-pl"  data-id="${pl.id}" title="${t('deletePlaylist')}">🗑</button>
+            <button class="btn-icon btn-play-pl"    data-id="${pl.id}" title="${t('playPlaylist')}">${icon('play')}</button>
+            <button class="btn-icon btn-queue-pl"   data-id="${pl.id}" title="${t('addPlaylistToQueue')}">${icon('queue')}</button>
+            <button class="btn-icon btn-rename-pl"  data-id="${pl.id}" title="${t('renamePlaylist')}">${icon('edit')}</button>
+            <button class="btn-icon btn-delete-pl"  data-id="${pl.id}" title="${t('deletePlaylist')}">${icon('trash')}</button>
           </div>
         </div>
         <ol class="playlist-tracks" aria-label="${escHtml(pl.name)} – ${t('trackCount', pl.tracks.length)}">
@@ -56,7 +57,7 @@ export function renderPlaylists(container, ctrl) {
                 <button class="btn-icon btn-remove-track"
                         data-pl-id="${pl.id}"
                         data-track-id="${track.id}"
-                        title="${t('removeFromQueue')}">✕</button>
+                        title="${t('removeFromQueue')}">${icon('close', 18)}</button>
               </li>`).join('')
             : `<li class="empty-msg small">${t('playlistItemsEmpty')}</li>`
           }

@@ -4,6 +4,8 @@
 import { appState } from '../../../../src/core/state/AppState.js';
 import { t }        from '../../../../src/core/i18n/i18n.js';
 import { formatDuration, isoThumb } from './helpers.js';
+import { icon }     from './icons.js';
+import { openPlaylistPicker } from './PlaylistPicker.js';
 import { trackFromSearchResult } from '../../../../src/core/models.js';
 
 let _ctrl;
@@ -116,13 +118,15 @@ function renderResults(container) {
     card.querySelector('.btn-play')?.addEventListener('click', () => _ctrl.playNow(result));
     card.querySelector('.btn-queue')?.addEventListener('click', () => _ctrl.addToQueue(result));
     card.querySelector('.btn-next')?.addEventListener('click', () => _ctrl.playNext(result));
+    card.querySelector('.btn-addpl')?.addEventListener('click', () => openPlaylistPicker(result, _ctrl));
     card.querySelector('.btn-fav')?.addEventListener('click', () => {
       const track = trackFromSearchResult(result);
       _ctrl.toggleFavorite(track);
       // Re-render the star only
       const btn = card.querySelector('.btn-fav');
       const isFav = _ctrl.isFavorite(result.id);
-      btn.textContent = isFav ? '★' : '☆';
+      btn.innerHTML = isFav ? icon('heartFill') : icon('heart');
+      btn.classList.toggle('active', isFav);
       btn.title = isFav ? t('removeFromFavorites') : t('addToFavorites');
     });
   });
@@ -137,22 +141,25 @@ function resultCardHtml(r, isFav) {
     ? `<span class="result-duration">${formatDuration(r.durationSec)}</span>`
     : `<span class="result-playlist-badge">Playlist · ${t('trackCount', r.trackCount)}</span>`;
 
+  const isPlaylist = r.type === 'playlist';
   return `
     <article class="result-card" data-id="${r.id}" data-type="${r.type}">
-      <div class="result-thumb-wrap">${thumb}</div>
+      <div class="result-thumb-wrap">${thumb}
+        <button class="thumb-play btn-play" title="${t('play')}" aria-label="${t('play')}">${icon('play', 22)}</button>
+      </div>
       <div class="result-info">
         <p class="result-title" title="${escHtml(r.title)}">${escHtml(r.title)}</p>
         <p class="result-artist">${escHtml(r.artist)}</p>
         ${meta}
       </div>
       <div class="result-actions">
-        <button class="btn-icon btn-play"  title="${t('play')}" aria-label="${t('play')}">▶</button>
-        <button class="btn-icon btn-queue" title="${t('addToQueue')}" aria-label="${t('addToQueue')}">＋</button>
-        <button class="btn-icon btn-next"  title="${t('playNext')}" aria-label="${t('playNext')}">⏭</button>
+        <button class="btn-icon btn-queue" title="${t('addToQueue')}" aria-label="${t('addToQueue')}">${icon('queue')}</button>
+        <button class="btn-icon btn-next"  title="${t('playNext')}" aria-label="${t('playNext')}">${icon('next')}</button>
+        ${isPlaylist ? '' : `<button class="btn-icon btn-addpl" title="${t('addToPlaylist')}" aria-label="${t('addToPlaylist')}">${icon('plusList')}</button>`}
         <button class="btn-icon btn-fav ${isFav ? 'active' : ''}"
                 title="${isFav ? t('removeFromFavorites') : t('addToFavorites')}"
                 aria-label="${isFav ? t('removeFromFavorites') : t('addToFavorites')}">
-          ${isFav ? '★' : '☆'}
+          ${isFav ? icon('heartFill') : icon('heart')}
         </button>
       </div>
     </article>

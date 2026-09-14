@@ -5,15 +5,45 @@
  *        t('trackCount', 12)   // calls string function if value is a fn
  */
 import de from './de.js';
+import en from './en.js';
 
-const LOCALES = { de };
-let _locale = 'de';
+const LOCALES = { de, en };
+const STORAGE_KEY = 'tap.locale';
+
+function detectInitialLocale() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && LOCALES[saved]) return saved;
+  } catch { /* ignore */ }
+  const nav = (typeof navigator !== 'undefined' && navigator.language || '').slice(0, 2);
+  return LOCALES[nav] ? nav : 'de';
+}
+
+let _locale = detectInitialLocale();
 let _strings = LOCALES[_locale];
+const _listeners = new Set();
+
+export function getLocale() {
+  return _locale;
+}
+
+export function availableLocales() {
+  return Object.keys(LOCALES);
+}
 
 export function setLocale(locale) {
   if (!LOCALES[locale]) throw new Error(`Locale "${locale}" not registered.`);
+  if (locale === _locale) return;
   _locale = locale;
   _strings = LOCALES[locale];
+  try { localStorage.setItem(STORAGE_KEY, locale); } catch { /* ignore */ }
+  _listeners.forEach(fn => fn(locale));
+}
+
+/** Subscribe to locale changes. Returns an unsubscribe function. */
+export function onLocaleChange(fn) {
+  _listeners.add(fn);
+  return () => _listeners.delete(fn);
 }
 
 /**

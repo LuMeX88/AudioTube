@@ -67,6 +67,14 @@ export default {
   playPlaylist: 'Playlist abspielen',
   addPlaylistToQueue: 'Zur Warteschlange hinzufügen',
 
+  // Playlist picker (add-to-playlist modal)
+  addToPlaylistTitle: 'Zu Playlist hinzufügen',
+  newPlaylistInline: 'Neue Playlist erstellen…',
+  newPlaylistPrompt: 'Name der neuen Playlist',
+  addedToPlaylist: (title, name) => `„${title}“ zu „${name}“ hinzugefügt.`,
+  alreadyInPlaylist: (name) => `Bereits in „${name}“ enthalten.`,
+  noPlaylistsYet: 'Du hast noch keine Playlists. Erstelle eine:',
+
   // Errors
   errorNotAvailable: 'Dieser Inhalt ist nicht verfügbar oder gesperrt.',
   errorStream: 'Audio-Stream konnte nicht geladen werden.',
@@ -91,6 +99,11 @@ export default {
   aiEnabled: 'KI-Suchverbesserung aktivieren',
   save: 'Speichern',
   cancel: 'Abbrechen',
+
+  // Language
+  language: 'Sprache',
+  langGerman: 'Deutsch',
+  langEnglish: 'English',
 
   // Misc
   loading: 'Laden…',
