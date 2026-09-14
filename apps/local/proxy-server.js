@@ -190,7 +190,7 @@ app.get('/api/invidious', async (req, res) => {
       return res.json([]);
     }
     try {
-      const results = await ytSearch(qp.get('q') || '', 25);
+      const results = await ytSearch(qp.get('q') || '', 10);
       return res.json(results);
     } catch (err) {
       console.error('[/api/invidious] yt-dlp search error:', err.message);
