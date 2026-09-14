@@ -25,7 +25,7 @@ DOMAIN = "tube_audio_player"
 PANEL_URL_PATH = "tube-audio"
 PANEL_TITLE = "AudioTube"
 PANEL_ICON = "mdi:music-note"
-APP_URL = "/local/tube_audio_player/apps/local/index.html?v=20260914-12"
+APP_URL = "/local/tube_audio_player/apps/local/index.html?v=20260914-14"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:

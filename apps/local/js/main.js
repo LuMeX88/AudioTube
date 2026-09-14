@@ -6,7 +6,7 @@
 import { config }                   from './config.js';
 import { LocalStorageAdapter }      from '../../../src/adapters/local/LocalStorageAdapter.js?v=20260914-3';
 import { LocalPlaybackAdapter }     from '../../../src/adapters/local/LocalPlaybackAdapter.js';
-import { HAPlaybackAdapter }        from './HAPlaybackAdapter.js?v=20260914-12';
+import { HAPlaybackAdapter }        from './HAPlaybackAdapter.js?v=20260914-14';
 import { InvidiousSearchProvider }  from '../../../src/core/search/InvidiousSearchProvider.js';
 import { SearchClient }             from '../../../src/core/search/SearchClient.js';
 import { AppController }            from './AppController.js';

@@ -15,6 +15,8 @@ export class HAPlaybackAdapter {
   #stateCallbacks = new Set();
   #state = defaultPlaybackState();
   #streamUrlResolver;
+  #pollTimer;
+  #lastRemoteStatus = 'idle';
 
   constructor(streamUrlResolver) {
     this.#streamUrlResolver = streamUrlResolver;
@@ -48,6 +50,7 @@ export class HAPlaybackAdapter {
         if (message.type === 'auth_ok') {
           clearTimeout(timeout);
           this.#socket = socket;
+          this.#startPolling();
           resolve();
           return;
         }
@@ -82,7 +85,7 @@ export class HAPlaybackAdapter {
   }
 
   async getSpeakers() {
-    const states = await this.#call('get_states');
+    const states = await this.#apiRequest('/api/states');
     return states
       .filter(state => state.entity_id.startsWith('media_player.'))
       .map(state => ({
@@ -100,27 +103,32 @@ export class HAPlaybackAdapter {
     this.#selectedSpeakerId = id;
     const speaker = speakers.find(item => item.id === id);
     this.#patchState({ volume: speaker.volume });
+    this.#startPolling();
   }
 
   async play(track) {
     if (!this.#selectedSpeakerId) throw new Error('Kein Lautsprecher ausgewählt.');
     this.#patchState({ status: 'loading', currentTrack: track });
     const streamUrl = await this.#streamUrlResolver(track.id);
-    await this.#call('call_service', {
-      domain: 'media_player',
-      service: 'play_media',
-      service_data: {
+    await this.#apiRequest('/api/services/media_player/play_media', {
+      method: 'POST',
+      body: JSON.stringify({
         entity_id: this.#selectedSpeakerId,
         media_content_id: streamUrl,
         media_content_type: 'music',
-      },
+      }),
     });
     this.#patchState({ status: 'playing' });
+    this.#startPolling();
   }
 
   async pause() { await this.#callService('media_pause'); this.#patchState({ status: 'paused' }); }
   async resume() { await this.#callService('media_play'); this.#patchState({ status: 'playing' }); }
-  async stop() { await this.#callService('media_stop'); this.#patchState(defaultPlaybackState()); }
+  async stop() {
+    await this.#callService('media_stop');
+    this.#lastRemoteStatus = 'idle';
+    this.#patchState(defaultPlaybackState());
+  }
   async next() { await this.#callService('media_next_track'); }
   async previous() { await this.#callService('media_previous_track'); }
 
@@ -131,18 +139,91 @@ export class HAPlaybackAdapter {
 
   async #callService(service, serviceData = {}) {
     if (!this.#selectedSpeakerId) return;
-    await this.#call('call_service', {
-      domain: 'media_player',
-      service,
-      service_data: { entity_id: this.#selectedSpeakerId, ...serviceData },
+    await this.#apiRequest(`/api/services/media_player/${service}`, {
+      method: 'POST',
+      body: JSON.stringify({ entity_id: this.#selectedSpeakerId, ...serviceData }),
     });
   }
 
+  async #apiRequest(path, options = {}) {
+    const tokens = JSON.parse(localStorage.getItem('hassTokens') || '{}');
+    if (!tokens.access_token || (tokens.expires && tokens.expires <= Date.now())) {
+      window.top.location.href = '/';
+      throw new Error('Home Assistant-Anmeldung abgelaufen.');
+    }
+    const response = await fetch(path, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+    if (response.status === 401) {
+      window.top.location.href = '/';
+      throw new Error('Home Assistant-Anmeldung abgelaufen.');
+    }
+    if (!response.ok) throw new Error(`Home Assistant API Fehler: HTTP ${response.status}`);
+    return response.status === 204 ? null : response.json();
+  }
+
   onStateChange(callback) { this.#stateCallbacks.add(callback); callback({ ...this.#state }); }
-  destroy() { this.#socket?.close(); this.#stateCallbacks.clear(); }
+  destroy() {
+    clearInterval(this.#pollTimer);
+    this.#socket?.close();
+    this.#stateCallbacks.clear();
+  }
+
+  #startPolling() {
+    if (this.#pollTimer) return;
+    this.#pollTimer = setInterval(() => this.#pollState(), 1000);
+    this.#pollState();
+  }
+
+  async #pollState() {
+    if (!this.#selectedSpeakerId) return;
+    try {
+      const states = await this.#apiRequest('/api/states');
+      const remote = states.find(state => state.entity_id === this.#selectedSpeakerId);
+      if (!remote) return;
+
+      const attributes = remote.attributes || {};
+      const remoteStatus = remote.state;
+      const durationSec = Number(attributes.media_duration || this.#state.currentTrack?.durationSec || 0);
+      let positionSec = Number(attributes.media_position || 0);
+      const updatedAt = Date.parse(attributes.media_position_updated_at || '');
+      if (remoteStatus === 'playing' && Number.isFinite(updatedAt)) {
+        positionSec += Math.max(0, (Date.now() - updatedAt) / 1000);
+      }
+
+      const status = remoteStatus === 'playing' ? 'playing'
+        : remoteStatus === 'paused' ? 'paused'
+        : remoteStatus === 'buffering' ? 'loading'
+        : remoteStatus === 'idle' ? 'idle'
+        : this.#state.status;
+
+      this.#patchState({
+        status,
+        positionSec: Math.min(positionSec, durationSec || positionSec),
+        durationSec,
+        volume: Math.round((attributes.volume_level ?? this.#state.volume / 100) * 100),
+      });
+
+      if (this.#lastRemoteStatus === 'playing' && remoteStatus === 'idle') {
+        this.#emit({ ...this.#state, _event: 'ended' });
+      }
+      this.#lastRemoteStatus = remoteStatus;
+    } catch (error) {
+      console.warn('[HAPlaybackAdapter] State polling failed:', error.message);
+    }
+  }
 
   #patchState(patch) {
     this.#state = { ...this.#state, ...patch };
-    for (const callback of this.#stateCallbacks) callback({ ...this.#state });
+    this.#emit(this.#state);
+  }
+
+  #emit(state) {
+    for (const callback of this.#stateCallbacks) callback({ ...state });
   }
 }
