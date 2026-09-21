@@ -88,7 +88,7 @@ export default {
 
   // Settings
   settings: 'Settings',
-  aiSettings: 'AI settings (axposervices / OpenAI-compatible)',
+  aiSettings: 'AI settings (OpenAI-compatible)',
   aiBaseUrl: 'API base URL',
   aiApiKey: 'API key',
   aiModel: 'Model',

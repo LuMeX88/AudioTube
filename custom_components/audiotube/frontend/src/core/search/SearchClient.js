@@ -2,13 +2,13 @@
  * AI-enhanced Search Client
  *
  * Wraps a SearchProvider and optionally augments results with an
- * OpenAI-compatible LLM (axposervices, Azure OpenAI, or any
+ * OpenAI-compatible LLM (Azure OpenAI, OpenAI, or any
  * OpenAI-compatible endpoint).
  *
- * Configuration via apps/local/config.js (or HA integration config).
+ * Configuration via js/config.js (or the AudioTube integration settings).
  *
- * NF-01/NF-02/NF-03: AI enhancement is OPTIONAL and does not replace
- * the core Invidious search. App works fully without an AI endpoint.
+ * AI enhancement is OPTIONAL and does not replace the core search.
+ * App works fully without an AI endpoint.
  *
  * @module core/search/SearchClient
  */
@@ -22,7 +22,7 @@ export class SearchClient {
   /**
    * @param {object} provider  - implements SearchProvider interface
    * @param {object} [aiConfig]
-   * @param {string} [aiConfig.baseUrl]  - OpenAI-compatible base URL (axposervices)
+   * @param {string} [aiConfig.baseUrl]  - OpenAI-compatible base URL
    * @param {string} [aiConfig.apiKey]
    * @param {string} [aiConfig.model]    - e.g. 'gpt-4o-mini'
    * @param {boolean}[aiConfig.enabled]
@@ -62,7 +62,7 @@ export class SearchClient {
 
   // ─── AI query rewriting ────────────────────────────────────────────────────
   // Improves YouTube search quality by normalising artist/track names.
-  // Configure axposervices endpoint in Settings → KI-Einstellungen.
+  // Configure the AI endpoint in Settings → AI settings.
 
   async #rewriteQuery(rawQuery) {
     const { baseUrl, apiKey, model } = this.#aiConfig;

@@ -54,7 +54,7 @@ export class LocalPlaybackAdapter {
     this.#patchState({ status: 'loading', currentTrack: track });
 
     try {
-      // Audio-only: NEVER create a video element (F-10)
+      // Audio-only: NEVER create a video element
       const streamUrl = await this.#streamUrlResolver(track.id);
       this.#audio.src = streamUrl;
       this.#audio.load();

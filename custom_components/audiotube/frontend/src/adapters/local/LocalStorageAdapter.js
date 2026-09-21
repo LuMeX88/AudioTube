@@ -63,7 +63,7 @@ function defaultSettings() {
   return {
     ai: {
       enabled: false,
-      baseUrl: '',   // e.g. https://axposervices.azure-api.net/openai
+      baseUrl: '',   // e.g. https://your-endpoint.example.com/openai
       apiKey: '',
       model: 'gpt-4o-mini',
     },
