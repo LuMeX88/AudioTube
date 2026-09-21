@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "AudioTube einrichten",
+        "description": "Gib die URL des AudioTube-Proxys ein. Sie muss von Home Assistant und den Ziel-Lautsprechern erreichbar sein.",
+        "data": {
+          "proxy_url": "URL des Audio-Proxys"
+        }
+      }
+    }
+  }
+}

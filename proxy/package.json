@@ -1,0 +1,17 @@
+{
+  "name": "audiotube-proxy",
+  "version": "1.0.0",
+  "description": "Audio-only YouTube proxy for the AudioTube Home Assistant integration",
+  "type": "module",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev":   "node proxy-server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AudioTube – YouTube-Audio auf Sonos und Browser (lokale Testversion)" />
+  <title>AudioTube</title>
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Prevent video embeds entirely (Content-Security-Policy) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="
+          default-src 'self' https:;
+          script-src  'self';
+          style-src   'self' 'unsafe-inline';
+          img-src     'self' https: data:;
+          media-src   'self' https: http: blob:;
+          connect-src 'self' https: http:;
+          frame-src   'none';
+          object-src  'none';
+        " />
+</head>
+<body>
+  <div id="app">
+    <!-- Rendered by js/main.js -->
+    <div class="loading-indicator" role="status" aria-live="polite">
+      AudioTube wird geladen…
+    </div>
+  </div>
+
+  <!--
+    Version B — Local Browser Build
+    ================================
+    Requires: apps/local/proxy-server.js (for audio stream extraction)
+    Start:    node apps/local/proxy-server.js
+    Then open this file via http://localhost:3001 or any static server.
+
+    No YouTube API key · No login · No video playback (CSP enforced)
+  -->
+  <script type="module" src="js/main.js?v=20260914-18"></script>
+</body>
+</html>
