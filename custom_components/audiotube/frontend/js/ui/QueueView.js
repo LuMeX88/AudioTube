@@ -6,6 +6,7 @@ import { t }        from '../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js';
 import { showConfirm } from './dialogs.js';
+import { enableDragReorder } from './dragReorder.js';
 
 export function renderQueue(container, ctrl) {
   container.innerHTML = `
@@ -35,6 +36,7 @@ export function renderQueue(container, ctrl) {
 
     list.innerHTML = queue.map((item, i) => `
       <li class="queue-item ${i === current ? 'queue-item--active' : ''}"
+          draggable="true"
           data-queue-id="${item.queueId}"
           aria-current="${i === current ? 'true' : 'false'}">
         <span class="queue-index">${i === current ? icon('play', 16) : i + 1}</span>
@@ -64,6 +66,12 @@ export function renderQueue(container, ctrl) {
 
   const unsub = appState.on(['queue', 'queueIndex'], render);
   appState.on('activeView', view => { if (view !== 'queue') unsub(); });
+
+  enableDragReorder(list, {
+    itemSelector: '.queue-item',
+    idAttr: 'queueId',
+    onReorder: ids => ctrl.reorderQueue(ids),
+  });
 
   render();
 }

@@ -78,20 +78,27 @@ export function renderPlayerBar(container, ctrl) {
   });
 
   // Progress scrub
-  progressBar.addEventListener('mousedown', () => { isScrubbing = true; });
-  progressBar.addEventListener('mouseup', () => {
-    isScrubbing = false;
-    seekToProgress();
+  progressBar.addEventListener('pointerdown', () => { isScrubbing = true; });
+  progressBar.addEventListener('input', () => {
+    isScrubbing = true;
+    timePos.textContent = formatDuration(progressPositionSec());
   });
-  progressBar.addEventListener('touchend', () => {
+  // Released outside the slider still ends the scrub, so the bar keeps updating.
+  window.addEventListener('pointerup', () => {
+    if (!isScrubbing) return;
     isScrubbing = false;
     seekToProgress();
   });
   progressBar.addEventListener('change', seekToProgress);
 
+  function progressPositionSec() {
+    const duration = appState.get('playback').durationSec;
+    return duration > 0 ? (Number(progressBar.value) / 100) * duration : 0;
+  }
+
   function seekToProgress() {
     const duration = appState.get('playback').durationSec;
-    if (duration > 0) ctrl.seek((Number(progressBar.value) / 100) * duration);
+    if (duration > 0) ctrl.seek(progressPositionSec());
   }
 
   // Volume

@@ -447,6 +447,24 @@ input, button, select { outline-offset: 2px; }
 .queue-item-artist { font-size: .75rem; color: var(--clr-text-sub); }
 .queue-item-duration { font-size: .75rem; color: var(--clr-text-sub); white-space: nowrap; }
 
+/* ─── Drag reordering ────────────────────────────────────────────────────── */
+.queue-item[draggable="true"],
+.playlist-track-item[draggable="true"] { cursor: grab; }
+
+/* The dragged row leaves behind a slot showing where it will land.
+   Outline instead of border, so the row does not shift while dragging. */
+.queue-item.dragging,
+.playlist-track-item.dragging {
+  cursor: grabbing;
+  background: var(--clr-surface-2);
+  border-color: transparent;
+  outline: 1px dashed var(--clr-accent);
+  outline-offset: -1px;
+  box-shadow: none;
+}
+.queue-item.dragging > *,
+.playlist-track-item.dragging > * { opacity: .25; }
+
 /* ─── Playlists view ─────────────────────────────────────────────────────── */
 .playlist-card {
   background: var(--clr-surface);

@@ -17,6 +17,8 @@ export class HAPlaybackAdapter {
   #streamUrlResolver;
   #pollTimer;
   #lastRemoteStatus = 'idle';
+  #seekTarget = null;
+  #seekGuardUntil = 0;
 
   constructor(streamUrlResolver) {
     this.#streamUrlResolver = streamUrlResolver;
@@ -140,8 +142,13 @@ export class HAPlaybackAdapter {
   }
 
   async seek(positionSec) {
-    await this.#callService('media_seek', { seek_position: Math.max(0, positionSec) });
-    this.#patchState({ positionSec: Math.max(0, positionSec) });
+    const target = Math.max(0, positionSec);
+    await this.#callService('media_seek', { seek_position: target });
+    // The speaker keeps reporting the old position for a moment; ignore that
+    // until it catches up, otherwise the progress bar snaps back.
+    this.#seekTarget = target;
+    this.#seekGuardUntil = Date.now() + 5000;
+    this.#patchState({ positionSec: target });
   }
 
   async #callService(service, serviceData = {}) {
@@ -201,6 +208,15 @@ export class HAPlaybackAdapter {
       const updatedAt = Date.parse(attributes.media_position_updated_at || '');
       if (remoteStatus === 'playing' && Number.isFinite(updatedAt)) {
         positionSec += Math.max(0, (Date.now() - updatedAt) / 1000);
+      }
+
+      if (this.#seekTarget !== null) {
+        const caughtUp = Math.abs(positionSec - this.#seekTarget) < 4;
+        if (caughtUp || Date.now() > this.#seekGuardUntil) {
+          this.#seekTarget = null;
+        } else {
+          positionSec = this.#state.positionSec;
+        }
       }
 
       const status = remoteStatus === 'playing' ? 'playing'

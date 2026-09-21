@@ -204,6 +204,24 @@ export class AppController {
     appState.set({ queue: [], queueIndex: -1 });
   }
 
+  /** Reorder the queue to match the given queueIds, keeping the current track current. */
+  reorderQueue(queueIds) {
+    const queue = appState.get('queue');
+    const playingId = queue[appState.get('queueIndex')]?.queueId;
+
+    const reordered = queueIds
+      .map(id => queue.find(item => item.queueId === id))
+      .filter(Boolean);
+    if (reordered.length !== queue.length) return;
+
+    appState.set({
+      queue: reordered,
+      queueIndex: playingId
+        ? reordered.findIndex(item => item.queueId === playingId)
+        : appState.get('queueIndex'),
+    });
+  }
+
   // ─── Favorites ────────────────────────────────────────────────────────────
 
   toggleFavorite(track) {
@@ -264,6 +282,18 @@ export class AppController {
         ? { ...pl, tracks: pl.tracks.filter(t => t.id !== trackId), updatedAt: Date.now() }
         : pl
     );
+    appState.set({ playlists: updated });
+    this.#storage.savePlaylists(updated);
+  }
+
+  /** Reorder one playlist's tracks to match the given track ids. */
+  reorderPlaylist(playlistId, trackIds) {
+    const updated = appState.get('playlists').map(pl => {
+      if (pl.id !== playlistId) return pl;
+      const tracks = trackIds.map(id => pl.tracks.find(t => t.id === id)).filter(Boolean);
+      if (tracks.length !== pl.tracks.length) return pl;
+      return { ...pl, tracks, updatedAt: Date.now() };
+    });
     appState.set({ playlists: updated });
     this.#storage.savePlaylists(updated);
   }

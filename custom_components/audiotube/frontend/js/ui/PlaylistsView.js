@@ -6,6 +6,7 @@ import { t }        from '../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js';
 import { showPrompt, showConfirm } from './dialogs.js';
+import { enableDragReorder } from './dragReorder.js';
 
 export function renderPlaylists(container, ctrl) {
   container.innerHTML = `
@@ -48,7 +49,7 @@ export function renderPlaylists(container, ctrl) {
         <ol class="playlist-tracks" aria-label="${escHtml(pl.name)} – ${t('trackCount', pl.tracks.length)}">
           ${pl.tracks.length
             ? pl.tracks.map((track, i) => `
-              <li class="playlist-track-item" data-track-id="${track.id}" data-pl-id="${pl.id}">
+              <li class="playlist-track-item" draggable="true" data-track-id="${track.id}" data-pl-id="${pl.id}">
                 <span class="track-num">${i + 1}</span>
                 <div class="track-info">
                   <span class="track-title">${escHtml(track.title)}</span>
@@ -94,6 +95,17 @@ export function renderPlaylists(container, ctrl) {
 
   const unsub = appState.on('playlists', render);
   appState.on('activeView', view => { if (view !== 'playlists') unsub(); });
+
+  enableDragReorder(content, {
+    itemSelector: '.playlist-track-item',
+    idAttr: 'trackId',
+    groupSelector: '.playlist-tracks',
+    onReorder: (ids, group) => {
+      const plId = group.querySelector('.playlist-track-item')?.dataset.plId;
+      if (plId) ctrl.reorderPlaylist(plId, ids);
+    },
+  });
+
   render();
 }
 
