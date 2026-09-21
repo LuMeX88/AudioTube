@@ -50,12 +50,13 @@ export class AppController {
       appState.set({ speakers: [] });
     }
 
-    // Select first available speaker
+    // Restore the previously used target, falling back to the first available one.
     const speakers = appState.get('speakers');
-    const first = speakers.find(s => s.isAvailable);
-    if (first) {
-      await this.#playback.selectSpeaker(first.id);
-      appState.set({ selectedSpeakerId: first.id });
+    const target = speakers.find(s => s.id === settings?.selectedSpeakerId && s.isAvailable)
+      ?? speakers.find(s => s.isAvailable);
+    if (target) {
+      await this.#playback.selectSpeaker(target.id);
+      appState.set({ selectedSpeakerId: target.id });
     }
 
     // Listen to playback state from adapter
@@ -178,6 +179,8 @@ export class AppController {
     try {
       await this.#playback.selectSpeaker(id);
       appState.set({ selectedSpeakerId: id });
+      const settings = await this.#storage.getSettings();
+      await this.#storage.saveSettings({ ...settings, selectedSpeakerId: id });
     } catch (err) {
       appState.notify(err.message, 'error');
     }

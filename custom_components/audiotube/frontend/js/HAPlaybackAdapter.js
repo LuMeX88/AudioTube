@@ -211,6 +211,7 @@ export class HAPlaybackAdapter {
 
       this.#patchState({
         status,
+        currentTrack: this.#state.currentTrack ?? this.#trackFromRemote(attributes, durationSec),
         positionSec: Math.min(positionSec, durationSec || positionSec),
         durationSec,
         volume: Math.round((attributes.volume_level ?? this.#state.volume / 100) * 100),
@@ -223,6 +224,22 @@ export class HAPlaybackAdapter {
     } catch (error) {
       console.warn('[HAPlaybackAdapter] State polling failed:', error.message);
     }
+  }
+
+  /**
+   * Rebuilds a track from what the speaker reports, so the player bar still
+   * reflects playback after the panel was unmounted and mounted again.
+   */
+  #trackFromRemote(attributes, durationSec) {
+    if (!attributes.media_title) return null;
+    return {
+      id: '',
+      title: attributes.media_title,
+      artist: attributes.media_artist || '',
+      durationSec,
+      thumbnailUrl: attributes.entity_picture || '',
+      videoUrl: '',
+    };
   }
 
   #patchState(patch) {

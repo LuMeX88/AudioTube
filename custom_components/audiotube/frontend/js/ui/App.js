@@ -95,12 +95,15 @@ export function renderApp(ctrl) {
   });
 
   // Speaker name in header
-  appState.on(['selectedSpeakerId', 'speakers'], () => {
+  const renderSpeakerName = () => {
     const id       = appState.get('selectedSpeakerId');
     const speakers = appState.get('speakers');
     const sp       = speakers.find(s => s.id === id);
     document.getElementById('speakerName').textContent = sp?.name || '–';
-  });
+  };
+  appState.on(['selectedSpeakerId', 'speakers'], renderSpeakerName);
+  // The speaker is restored during init(), before this view subscribes.
+  renderSpeakerName();
 
   // Initial view
   navigate('search');
