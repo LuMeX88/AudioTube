@@ -77,5 +77,5 @@ async def _async_register(hass: HomeAssistant, proxy_url: str) -> None:
         require_admin=False,
     )
 
-        data["registered"] = True
-        _LOGGER.info("AudioTube panel registered at /%s", PANEL_URL_PATH)
+    data["registered"] = True
+    _LOGGER.info("AudioTube panel registered at /%s", PANEL_URL_PATH)
