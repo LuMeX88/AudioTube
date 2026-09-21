@@ -27,6 +27,9 @@ PANEL_URL_PATH = DOMAIN
 PANEL_TITLE = "AudioTube"
 PANEL_ICON = "mdi:music-note"
 
+SUPPORT_CLEAR_PLAYLIST = 8192
+SUPPORT_MEDIA_ENQUEUE = 2097152
+
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the AudioTube integration."""
@@ -78,15 +81,29 @@ async def _async_register(hass: HomeAssistant) -> None:
     hass.http.register_view(AudioTubeAudioView())
 
     async def async_play_media(call) -> None:
+        entity_id = call.data["entity_id"]
+        features = 0
+        if (state := hass.states.get(entity_id)) is not None:
+            features = state.attributes.get("supported_features") or 0
+
+        data = {
+            "entity_id": entity_id,
+            "media_content_id": call.data["media_url"],
+            "media_content_type": "music",
+        }
+        if features & SUPPORT_MEDIA_ENQUEUE:
+            # Queued playback carries track metadata; handing a speaker a bare
+            # URI makes the Sonos app show "unknown content". AudioTube keeps
+            # its own queue, so the speaker's queue is cleared first.
+            if features & SUPPORT_CLEAR_PLAYLIST:
+                await hass.services.async_call(
+                    "media_player", "clear_playlist", {"entity_id": entity_id},
+                    blocking=True,
+                )
+            data["enqueue"] = "play"
+
         await hass.services.async_call(
-            "media_player",
-            "play_media",
-            {
-                "entity_id": call.data["entity_id"],
-                "media_content_id": call.data["media_url"],
-                "media_content_type": "music",
-            },
-            blocking=True,
+            "media_player", "play_media", data, blocking=True
         )
 
     hass.services.async_register(
