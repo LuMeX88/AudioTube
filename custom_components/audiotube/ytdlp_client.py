@@ -37,6 +37,8 @@ class _YtDlpLogger:
 
 _EXTRACTOR_ARGS = {"youtube": {"player_client": ["android"]}}
 
+_AUDIO_SUFFIXES = {".mp3", ".m4a", ".webm", ".opus", ".ogg", ".aac"}
+
 _SEARCH_OPTS = {
     "quiet": True,
     "no_warnings": True,
@@ -121,13 +123,24 @@ async def async_resolve(hass: HomeAssistant, url: str) -> list[dict[str, Any]]:
     return await hass.async_add_executor_job(_resolve_sync, url)
 
 
+def _find_audio_file(directory: Path, video_id: str) -> Path | None:
+    """Return the cached audio file, ignoring leftover thumbnail images."""
+    for candidate in directory.glob(f"{video_id}.*"):
+        if (
+            candidate.suffix.lower() in _AUDIO_SUFFIXES
+            and candidate.is_file()
+            and candidate.stat().st_size > 0
+        ):
+            return candidate
+    return None
+
+
 def _ensure_audio_file_sync(directory: Path, video_id: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
 
-    for candidate in directory.glob(f"{video_id}.*"):
-        if candidate.is_file() and candidate.stat().st_size > 0:
-            _LOGGER.debug("Using cached audio file for %s: %s", video_id, candidate.name)
-            return candidate
+    if cached := _find_audio_file(directory, video_id):
+        _LOGGER.debug("Using cached audio file for %s: %s", video_id, cached.name)
+        return cached
 
     import yt_dlp
 
@@ -138,8 +151,14 @@ def _ensure_audio_file_sync(directory: Path, video_id: str) -> Path:
         "format": "bestaudio/best",
         "outtmpl": str(directory / f"{video_id}.%(ext)s"),
         "extractor_args": _EXTRACTOR_ARGS,
-        # MP3 has the broadest Sonos S1 compatibility.
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
+        # Speakers read title, artist and cover art from the file's own tags.
+        "writethumbnail": True,
+        "postprocessors": [
+            # MP3 has the broadest Sonos S1 compatibility.
+            {"key": "FFmpegExtractAudio", "preferredcodec": "mp3"},
+            {"key": "FFmpegMetadata", "add_metadata": True},
+            {"key": "EmbedThumbnail", "already_have_thumbnail": False},
+        ],
     }
     _LOGGER.debug("Downloading audio for video_id=%r", video_id)
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -149,9 +168,8 @@ def _ensure_audio_file_sync(directory: Path, video_id: str) -> Path:
     if mp3_path.exists() and mp3_path.stat().st_size > 0:
         _LOGGER.debug("Downloaded audio for %s: %s", video_id, mp3_path.name)
         return mp3_path
-    for candidate in directory.glob(f"{video_id}.*"):
-        if candidate.is_file() and candidate.stat().st_size > 0:
-            return candidate
+    if downloaded := _find_audio_file(directory, video_id):
+        return downloaded
     raise FileNotFoundError(f"Audio file for {video_id} was not created")
 
 
