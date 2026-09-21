@@ -7,6 +7,7 @@
 import { log } from '../log.js';
 
 const DEFAULT_TIMEOUT_MS = 30000;
+const PREPARE_TIMEOUT_MS = 180000;
 
 export class InvidiousSearchProvider {
   // ─── SearchProvider interface ─────────────────────────────────────────────
@@ -49,17 +50,22 @@ export class InvidiousSearchProvider {
   /**
    * Returns the audio-only stream URL for a video, served by the integration itself.
    * Absolute, so LAN speakers (e.g. Sonos) can resolve it independent of the
-   * browser's page context.
+   * browser's page context. The file is downloaded and cached first, because
+   * speakers time out if the very first request has to wait for yt-dlp.
    * @param {string} videoId
    * @returns {Promise<string>}
    */
   async getAudioStreamUrl(videoId) {
+    await this.#fetchJson(
+      `/api/audiotube/prepare/${encodeURIComponent(videoId)}`,
+      PREPARE_TIMEOUT_MS,
+    );
     return `${location.origin}/api/audiotube/audio/${encodeURIComponent(videoId)}.mp3`;
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
 
-  async #fetchJson(url) {
+  async #fetchJson(url, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const tokens = JSON.parse(localStorage.getItem('hassTokens') || '{}');
     const expiresInMs = tokens.expires ? tokens.expires - Date.now() : null;
     log.debug('request', {
@@ -72,7 +78,7 @@ export class InvidiousSearchProvider {
       : {};
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res;
     try {
       res = await fetch(url, { headers, signal: controller.signal });

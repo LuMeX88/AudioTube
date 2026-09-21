@@ -6,6 +6,7 @@ import { appState } from '../../src/core/state/AppState.js';
 import { t }        from '../../src/core/i18n/i18n.js';
 import { icon }     from './icons.js';
 import { trackFromSearchResult } from '../../src/core/models.js';
+import { showPrompt } from './dialogs.js';
 
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -70,10 +71,10 @@ export function openPlaylistPicker(source, ctrl) {
       });
     });
 
-    modal.querySelector('#pickerNew').addEventListener('click', () => {
-      const name = prompt(t('newPlaylistPrompt'));
-      if (!name?.trim()) return;
-      const pl = ctrl.createPlaylist(name.trim());
+    modal.querySelector('#pickerNew').addEventListener('click', async () => {
+      const name = await showPrompt(t('newPlaylistPrompt'));
+      if (!name) return;
+      const pl = ctrl.createPlaylist(name);
       ctrl.addTrackToPlaylist(pl.id, track);
       appState.notify(t('addedToPlaylist', track.title, pl.name), 'info');
       close();

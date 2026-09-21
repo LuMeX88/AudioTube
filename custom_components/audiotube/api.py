@@ -64,6 +64,29 @@ class AudioTubeResolveView(HomeAssistantView):
         return self.json(results)
 
 
+class AudioTubePrepareView(HomeAssistantView):
+    """Download and cache a track's audio before a speaker is told to play it."""
+
+    url = "/api/audiotube/prepare/{video_id}"
+    name = "api:audiotube:prepare"
+
+    async def get(self, request: web.Request, video_id: str) -> web.Response:
+        """Ensure the audio file exists, so the speaker's request is served instantly."""
+        hass: HomeAssistant = request.app[KEY_HASS]
+        video_id = video_id.removesuffix(".mp3")
+        if not VIDEO_ID_RE.match(video_id):
+            return self.json({"error": "Ungültige videoId."}, status_code=400)
+
+        try:
+            await async_ensure_audio_file(hass, cache_dir(hass), video_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.exception("AudioTube prepare failed for video_id=%r", video_id)
+            return self.json(
+                {"error": f"Audio konnte nicht geladen werden: {err}"}, status_code=502
+            )
+        return self.json({"ready": True})
+
+
 class AudioTubeAudioView(HomeAssistantView):
     """Resolve and serve cached audio-only files."""
 

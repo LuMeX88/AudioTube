@@ -4,7 +4,7 @@
  * @module core/state/AppState
  */
 
-import { defaultPlaybackState } from '../models.js';
+import { defaultPlaybackState, generateId } from '../models.js';
 
 const INITIAL_STATE = {
   // Search
@@ -123,7 +123,7 @@ export class AppState {
   // ─── Notification helper ──────────────────────────────────────────────────
 
   notify(message, type = 'info', durationMs = 4000) {
-    const id = crypto.randomUUID();
+    const id = generateId();
     this.set({ notification: { message, type, id } });
     if (durationMs > 0) {
       setTimeout(() => {

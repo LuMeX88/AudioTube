@@ -11,7 +11,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .api import AudioTubeAudioView, AudioTubeResolveView, AudioTubeSearchView
+from .api import (
+    AudioTubeAudioView,
+    AudioTubePrepareView,
+    AudioTubeResolveView,
+    AudioTubeSearchView,
+)
 from .cache import async_schedule_purge
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,12 +45,8 @@ async def async_unload_entry(hass: HomeAssistant, entry) -> bool:
     return True
 
 
-async def _async_register(hass: HomeAssistant) -> None:
-    """Register static assets, HTTP views, the service, and the panel once."""
-    data = hass.data.setdefault(DOMAIN, {})
-    if data.get("registered"):
-        return
-
+def _check_yt_dlp_import() -> None:
+    """Import yt-dlp in the executor to avoid blocking the event loop."""
     try:
         import yt_dlp  # noqa: PLC0415
 
@@ -57,6 +58,15 @@ async def _async_register(hass: HomeAssistant) -> None:
             "correctly and restart Home Assistant."
         )
 
+
+async def _async_register(hass: HomeAssistant) -> None:
+    """Register static assets, HTTP views, the service, and the panel once."""
+    data = hass.data.setdefault(DOMAIN, {})
+    if data.get("registered"):
+        return
+
+    await hass.async_add_executor_job(_check_yt_dlp_import)
+
     frontend_path = Path(__file__).parent / "frontend"
     await hass.http.async_register_static_paths(
         [StaticPathConfig(f"/{DOMAIN}", str(frontend_path), cache_headers=False)]
@@ -64,6 +74,7 @@ async def _async_register(hass: HomeAssistant) -> None:
 
     hass.http.register_view(AudioTubeSearchView())
     hass.http.register_view(AudioTubeResolveView())
+    hass.http.register_view(AudioTubePrepareView())
     hass.http.register_view(AudioTubeAudioView())
 
     async def async_play_media(call) -> None:

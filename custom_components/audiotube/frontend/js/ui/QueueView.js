@@ -5,6 +5,7 @@ import { appState } from '../../src/core/state/AppState.js';
 import { t }        from '../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js';
+import { showConfirm } from './dialogs.js';
 
 export function renderQueue(container, ctrl) {
   container.innerHTML = `
@@ -19,8 +20,8 @@ export function renderQueue(container, ctrl) {
 
   const list = container.querySelector('#queueList');
 
-  container.querySelector('#clearQueueBtn').addEventListener('click', () => {
-    if (confirm(t('clearQueue') + '?')) ctrl.clearQueue();
+  container.querySelector('#clearQueueBtn').addEventListener('click', async () => {
+    if (await showConfirm(t('clearQueue') + '?')) ctrl.clearQueue();
   });
 
   function render() {

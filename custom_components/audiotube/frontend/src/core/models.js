@@ -66,13 +66,36 @@
 
 // ─── Factory helpers ──────────────────────────────────────────────────────────
 
+/**
+ * Generate a UUID. `crypto.randomUUID()` requires a secure context
+ * (HTTPS or localhost) and throws otherwise, which breaks this app when a
+ * Home Assistant instance is reached over plain HTTP via its LAN IP.
+ * Falls back to `crypto.getRandomValues` (available everywhere) or Math.random.
+ */
+export function generateId() {
+  if (typeof crypto?.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      // Insecure context — fall through to the manual implementation below.
+    }
+  }
+  const bytes = typeof crypto?.getRandomValues === 'function'
+    ? crypto.getRandomValues(new Uint8Array(16))
+    : Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function createQueueItem(track) {
-  return { queueId: crypto.randomUUID(), track };
+  return { queueId: generateId(), track };
 }
 
 export function createPlaylist(name) {
   const now = Date.now();
-  return { id: crypto.randomUUID(), name, tracks: [], createdAt: now, updatedAt: now };
+  return { id: generateId(), name, tracks: [], createdAt: now, updatedAt: now };
 }
 
 export function defaultPlaybackState() {

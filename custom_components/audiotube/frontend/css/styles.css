@@ -487,6 +487,16 @@ input, button, select { outline-offset: 2px; }
 }
 .modal-title { font-size: 1rem; font-weight: 700; margin-bottom: 14px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.dialog-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  background: var(--clr-surface);
+  color: var(--clr-text);
+  font-size: .9rem;
+  box-sizing: border-box;
+}
 
 .speaker-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; }
 .speaker-item {

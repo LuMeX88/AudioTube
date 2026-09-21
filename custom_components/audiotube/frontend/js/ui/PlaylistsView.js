@@ -5,6 +5,7 @@ import { appState } from '../../src/core/state/AppState.js';
 import { t }        from '../../src/core/i18n/i18n.js';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js';
+import { showPrompt, showConfirm } from './dialogs.js';
 
 export function renderPlaylists(container, ctrl) {
   container.innerHTML = `
@@ -17,9 +18,9 @@ export function renderPlaylists(container, ctrl) {
     </section>
   `;
 
-  container.querySelector('#createPlaylistBtn').addEventListener('click', () => {
-    const name = prompt(t('playlistName'));
-    if (name?.trim()) ctrl.createPlaylist(name.trim());
+  container.querySelector('#createPlaylistBtn').addEventListener('click', async () => {
+    const name = await showPrompt(t('playlistName'));
+    if (name) ctrl.createPlaylist(name);
   });
 
   const content = container.querySelector('#playlistsContent');
@@ -72,16 +73,16 @@ export function renderPlaylists(container, ctrl) {
       btn.addEventListener('click', () => ctrl.addPlaylistToQueue(btn.dataset.id));
     });
     content.querySelectorAll('.btn-rename-pl').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const pl = appState.get('playlists').find(p => p.id === btn.dataset.id);
-        const name = prompt(t('playlistName'), pl?.name || '');
-        if (name?.trim()) ctrl.renamePlaylist(btn.dataset.id, name.trim());
+        const name = await showPrompt(t('playlistName'), pl?.name || '');
+        if (name) ctrl.renamePlaylist(btn.dataset.id, name);
       });
     });
     content.querySelectorAll('.btn-delete-pl').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const pl = appState.get('playlists').find(p => p.id === btn.dataset.id);
-        if (confirm(t('playlistDeleteConfirm', pl?.name || ''))) {
+        if (await showConfirm(t('playlistDeleteConfirm', pl?.name || ''))) {
           ctrl.deletePlaylist(btn.dataset.id);
         }
       });
