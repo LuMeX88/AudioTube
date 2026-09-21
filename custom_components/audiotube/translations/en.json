@@ -8,6 +8,9 @@
           "proxy_url": "Audio proxy URL"
         }
       }
+    },
+    "error": {
+      "invalid_url": "Enter a valid URL, for example http://192.168.1.20:3001"
     }
   }
 }
