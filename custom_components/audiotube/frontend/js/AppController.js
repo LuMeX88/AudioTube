@@ -77,7 +77,7 @@ export class AppController {
       appState.set({ searchResults: results, searchLoading: false });
     } catch (err) {
       appState.set({ searchError: err.message, searchLoading: false, searchResults: [] });
-      appState.notify(t('searchError'), 'error');
+      appState.notify(err.message || t('searchError'), 'error');
     }
   }
 

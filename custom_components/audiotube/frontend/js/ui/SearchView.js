@@ -98,7 +98,7 @@ function renderResults(container) {
     return;
   }
   if (error) {
-    container.innerHTML = `<div class="error-msg" role="alert">${t('searchError')}</div>`;
+    container.innerHTML = `<div class="error-msg" role="alert">${error}</div>`;
     return;
   }
   if (!all.length && appState.get('searchQuery')) {
