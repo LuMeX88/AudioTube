@@ -296,6 +296,7 @@ export class AppController {
     try {
       await this.#playback.play(track);
     } catch (err) {
+      log.error('playback failed:', { trackId: track.id, error: err.message });
       appState.notify(`${t('errorStream')} ${t('tryNext')}`, 'error');
       // Auto-advance to next track after error
       setTimeout(() => this.next(), 2000);

@@ -48,11 +48,13 @@ export class InvidiousSearchProvider {
 
   /**
    * Returns the audio-only stream URL for a video, served by the integration itself.
+   * Absolute, so LAN speakers (e.g. Sonos) can resolve it independent of the
+   * browser's page context.
    * @param {string} videoId
    * @returns {Promise<string>}
    */
   async getAudioStreamUrl(videoId) {
-    return `/api/audiotube/audio/${encodeURIComponent(videoId)}.mp3`;
+    return `${location.origin}/api/audiotube/audio/${encodeURIComponent(videoId)}.mp3`;
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
