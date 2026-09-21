@@ -1,11 +1,11 @@
 {
   "domain": "audiotube",
   "name": "AudioTube",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "documentation": "https://github.com/LuMeX88/AudioTube",
   "issue_tracker": "https://github.com/LuMeX88/AudioTube/issues",
   "config_flow": true,
-  "requirements": [],
+  "requirements": ["yt-dlp>=2024.12.13"],
   "dependencies": ["http", "frontend"],
   "codeowners": [],
   "iot_class": "local_polling",

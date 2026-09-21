@@ -283,10 +283,6 @@ export class AppController {
   async saveSettings(settings) {
     await this.#storage.saveSettings(settings);
     if (settings.ai) this.#search.updateAiConfig(settings.ai);
-    // Update proxy URL in search provider
-    if (settings.proxyBaseUrl && this.#search.updateProxyBaseUrl) {
-      this.#search.updateProxyBaseUrl(settings.proxyBaseUrl);
-    }
     appState.notify('Einstellungen gespeichert.', 'info');
   }
 

@@ -88,8 +88,6 @@ export default {
 
   // Settings
   settings: 'Settings',
-  proxyUrl: 'Proxy server URL',
-  proxyUrlHelp: 'URL of the local dev server (e.g. http://localhost:3001)',
   aiSettings: 'AI settings (axposervices / OpenAI-compatible)',
   aiBaseUrl: 'API base URL',
   aiApiKey: 'API key',

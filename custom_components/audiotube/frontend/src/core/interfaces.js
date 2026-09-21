@@ -35,7 +35,7 @@
  *
  * getAudioStreamUrl(videoId)         → Promise<string>
  *   Returns a direct audio-only stream URL for the given video ID.
- *   Implementation: proxy-server (local) or HA backend (version A).
+ *   Implementation: the AudioTube Home Assistant integration's built-in API.
  */
 
 // ─── StorageAdapter ───────────────────────────────────────────────────────────

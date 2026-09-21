@@ -3,14 +3,8 @@
     "step": {
       "user": {
         "title": "Set up AudioTube",
-        "description": "Enter the URL of the AudioTube proxy. It must be reachable by Home Assistant and the target speakers.",
-        "data": {
-          "proxy_url": "Audio proxy URL"
-        }
+        "description": "AudioTube is fully self-contained. No configuration is required."
       }
-    },
-    "error": {
-      "invalid_url": "Enter a valid URL, for example http://192.168.1.20:3001"
     }
   }
 }

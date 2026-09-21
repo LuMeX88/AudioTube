@@ -19,12 +19,10 @@ async function bootstrap() {
   const storage   = new LocalStorageAdapter();
   const settings  = await storage.getSettings();
 
-  const configuredProxyUrl = new URLSearchParams(location.search).get('proxy');
-  const proxyUrl  = configuredProxyUrl || settings.proxyBaseUrl || config.proxyBaseUrl;
   const aiCfg     = { ...config.ai, ...(settings.ai || {}) };
 
-  // 2. Instantiate search
-  const invidiousProvider = new InvidiousSearchProvider({ proxyBaseUrl: proxyUrl });
+  // 2. Instantiate search (talks to the built-in AudioTube API, same-origin)
+  const invidiousProvider = new InvidiousSearchProvider();
   const searchClient      = new SearchClient(invidiousProvider, aiCfg);
 
   // 3. Instantiate playback adapter

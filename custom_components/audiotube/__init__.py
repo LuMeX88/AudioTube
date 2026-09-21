@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from urllib.parse import quote
 
 import voluptuous as vol
 from homeassistant.components import frontend
@@ -11,6 +10,9 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
+
+from .api import AudioTubeAudioView, AudioTubeResolveView, AudioTubeSearchView
+from .cache import async_schedule_purge
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,12 +30,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     """Set up AudioTube from a config entry."""
-    await _async_register(hass, entry.data["proxy_url"])
+    await _async_register(hass)
+    entry.async_on_unload(async_schedule_purge(hass))
     return True
 
 
-async def _async_register(hass: HomeAssistant, proxy_url: str) -> None:
-    """Register static assets, the service, and the panel once."""
+async def async_unload_entry(hass: HomeAssistant, entry) -> bool:
+    """Unload the AudioTube config entry."""
+    return True
+
+
+async def _async_register(hass: HomeAssistant) -> None:
+    """Register static assets, HTTP views, the service, and the panel once."""
     data = hass.data.setdefault(DOMAIN, {})
     if data.get("registered"):
         return
@@ -42,6 +50,10 @@ async def _async_register(hass: HomeAssistant, proxy_url: str) -> None:
     await hass.http.async_register_static_paths(
         [StaticPathConfig(f"/{DOMAIN}", str(frontend_path), cache_headers=False)]
     )
+
+    hass.http.register_view(AudioTubeSearchView())
+    hass.http.register_view(AudioTubeResolveView())
+    hass.http.register_view(AudioTubeAudioView())
 
     async def async_play_media(call) -> None:
         await hass.services.async_call(
@@ -73,7 +85,7 @@ async def _async_register(hass: HomeAssistant, proxy_url: str) -> None:
         sidebar_title=PANEL_TITLE,
         sidebar_icon=PANEL_ICON,
         frontend_url_path=PANEL_URL_PATH,
-        config={"url": f"/{DOMAIN}/index.html?proxy={quote(proxy_url, safe=':/')}"},
+        config={"url": f"/{DOMAIN}/index.html"},
         require_admin=False,
     )
 

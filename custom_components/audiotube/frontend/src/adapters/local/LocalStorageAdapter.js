@@ -61,9 +61,6 @@ export class LocalStorageAdapter {
 
 function defaultSettings() {
   return {
-    // Sonos resolves this URL from the speaker, so localhost would point at
-    // the speaker instead of the computer running the proxy.
-    proxyBaseUrl: '',
     ai: {
       enabled: false,
       baseUrl: '',   // e.g. https://axposervices.azure-api.net/openai

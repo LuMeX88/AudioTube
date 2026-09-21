@@ -11,7 +11,7 @@ play_media:
           domain: media_player
     media_url:
       name: Media URL
-      description: LAN-reachable MP3 URL served by the AudioTube proxy.
+      description: LAN-reachable MP3 URL resolved and served by AudioTube.
       required: true
       selector:
         text:
