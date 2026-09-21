@@ -4,6 +4,7 @@
  * (search, resolve, audio) — no external proxy or Invidious instance needed.
  * @module core/search/InvidiousSearchProvider
  */
+import { log } from '../log.js';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
@@ -58,6 +59,12 @@ export class InvidiousSearchProvider {
 
   async #fetchJson(url) {
     const tokens = JSON.parse(localStorage.getItem('hassTokens') || '{}');
+    const expiresInMs = tokens.expires ? tokens.expires - Date.now() : null;
+    log.debug('request', {
+      url,
+      hasToken: Boolean(tokens.access_token),
+      expiresInMs,
+    });
     const headers = tokens.access_token
       ? { Authorization: `Bearer ${tokens.access_token}` }
       : {};
@@ -67,14 +74,20 @@ export class InvidiousSearchProvider {
     let res;
     try {
       res = await fetch(url, { headers, signal: controller.signal });
+    } catch (err) {
+      log.error('fetch threw before a response was received', { url, error: err.message });
+      throw err;
     } finally {
       clearTimeout(timer);
     }
+    log.debug('response', { url, status: res.status });
     if (res.status === 401) {
+      log.error('unauthorized', { url, hasToken: Boolean(tokens.access_token), expiresInMs });
       throw new Error('Home Assistant-Anmeldung abgelaufen. Bitte Home Assistant neu laden.');
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      log.error('request failed', { url, status: res.status, body: err });
       throw new Error(err.error || `Anfrage fehlgeschlagen: HTTP ${res.status}`);
     }
     return res.json();

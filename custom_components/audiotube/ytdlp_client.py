@@ -14,11 +14,33 @@ from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
+
+class _YtDlpLogger:
+    """Routes yt-dlp's internal log messages into the Python logger.
+
+    yt-dlp reports real failure reasons (bot checks, region blocks, missing
+    formats, etc.) through this logger rather than raising in every case.
+    """
+
+    def debug(self, msg: str) -> None:
+        _LOGGER.debug("yt-dlp: %s", msg)
+
+    def info(self, msg: str) -> None:
+        _LOGGER.debug("yt-dlp: %s", msg)
+
+    def warning(self, msg: str) -> None:
+        _LOGGER.warning("yt-dlp: %s", msg)
+
+    def error(self, msg: str) -> None:
+        _LOGGER.error("yt-dlp: %s", msg)
+
+
 _EXTRACTOR_ARGS = {"youtube": {"player_client": ["android"]}}
 
 _SEARCH_OPTS = {
     "quiet": True,
     "no_warnings": True,
+    "logger": _YtDlpLogger(),
     "extract_flat": "in_playlist",
     "skip_download": True,
     "extractor_args": _EXTRACTOR_ARGS,
@@ -52,6 +74,7 @@ def _entry_to_result(entry: dict[str, Any] | None) -> dict[str, Any] | None:
 def _search_sync(query: str, limit: int) -> list[dict[str, Any]]:
     import yt_dlp
 
+    _LOGGER.debug("Searching yt-dlp for query=%r limit=%d", query, limit)
     with yt_dlp.YoutubeDL(_SEARCH_OPTS) as ydl:
         info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
 
@@ -59,6 +82,7 @@ def _search_sync(query: str, limit: int) -> list[dict[str, Any]]:
     for entry in info.get("entries") or []:
         if result := _entry_to_result(entry):
             results.append(result)
+    _LOGGER.debug("yt-dlp search for %r returned %d result(s)", query, len(results))
     return results
 
 
@@ -102,6 +126,7 @@ def _ensure_audio_file_sync(directory: Path, video_id: str) -> Path:
 
     for candidate in directory.glob(f"{video_id}.*"):
         if candidate.is_file() and candidate.stat().st_size > 0:
+            _LOGGER.debug("Using cached audio file for %s: %s", video_id, candidate.name)
             return candidate
 
     import yt_dlp
@@ -109,17 +134,20 @@ def _ensure_audio_file_sync(directory: Path, video_id: str) -> Path:
     opts = {
         "quiet": True,
         "no_warnings": True,
+        "logger": _YtDlpLogger(),
         "format": "bestaudio/best",
         "outtmpl": str(directory / f"{video_id}.%(ext)s"),
         "extractor_args": _EXTRACTOR_ARGS,
         # MP3 has the broadest Sonos S1 compatibility.
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
     }
+    _LOGGER.debug("Downloading audio for video_id=%r", video_id)
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
 
     mp3_path = directory / f"{video_id}.mp3"
     if mp3_path.exists() and mp3_path.stat().st_size > 0:
+        _LOGGER.debug("Downloaded audio for %s: %s", video_id, mp3_path.name)
         return mp3_path
     for candidate in directory.glob(f"{video_id}.*"):
         if candidate.is_file() and candidate.stat().st_size > 0:

@@ -38,6 +38,17 @@ custom_components/audiotube/  HACS custom integration, backend, and bundled fron
 - If a speaker fails to play, confirm it can reach the Home Assistant host on its usual port and that the selected entity supports `media_player.play_media`.
 - If the sidebar panel is missing after installation, restart Home Assistant and add the AudioTube integration through **Settings > Devices & services**.
 - If audio resolution fails, confirm `ffmpeg` is installed and on `PATH` on the Home Assistant host.
+- For detailed diagnostics, enable debug logging by adding this to `configuration.yaml` and restarting:
+
+  ```yaml
+  logger:
+    default: warning
+    logs:
+      custom_components.audiotube: debug
+  ```
+
+  This also logs yt-dlp's own diagnostic messages (for example bot checks or region blocks), and the browser console shows matching `[AudioTube]`-prefixed request/response details for the search and resolve calls.
+
 
 ## Legal Disclaimer
 

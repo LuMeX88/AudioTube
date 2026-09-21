@@ -38,8 +38,9 @@ class AudioTubeSearchView(HomeAssistantView):
         try:
             results = await async_search(hass, query)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.error("AudioTube search failed: %s", err)
-            return self.json({"error": "Suche fehlgeschlagen."}, status_code=502)
+            _LOGGER.exception("AudioTube search failed for query=%r", query)
+            return self.json({"error": f"Suche fehlgeschlagen: {err}"}, status_code=502)
+        _LOGGER.debug("AudioTube search for %r returned %d result(s)", query, len(results))
         return self.json(results)
 
 
@@ -58,8 +59,8 @@ class AudioTubeResolveView(HomeAssistantView):
         try:
             results = await async_resolve(hass, url)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.error("AudioTube resolve failed: %s", err)
-            return self.json({"error": "Ungültige YouTube-URL."}, status_code=502)
+            _LOGGER.exception("AudioTube resolve failed for url=%r", url)
+            return self.json({"error": f"Ungültige YouTube-URL: {err}"}, status_code=502)
         return self.json(results)
 
 
@@ -80,9 +81,9 @@ class AudioTubeAudioView(HomeAssistantView):
         try:
             file_path = await async_ensure_audio_file(hass, cache_dir(hass), video_id)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.error("AudioTube audio resolution failed for %s: %s", video_id, err)
+            _LOGGER.exception("AudioTube audio resolution failed for video_id=%r", video_id)
             return self.json(
-                {"error": "Audio konnte nicht geladen werden."}, status_code=502
+                {"error": f"Audio konnte nicht geladen werden: {err}"}, status_code=502
             )
 
         content_type = _CONTENT_TYPES.get(file_path.suffix, "application/octet-stream")

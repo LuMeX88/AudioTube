@@ -7,6 +7,7 @@
 import { appState } from '../src/core/state/AppState.js';
 import { createQueueItem, createPlaylist, trackFromSearchResult } from '../src/core/models.js';
 import { t } from '../src/core/i18n/i18n.js';
+import { log } from '../src/core/log.js';
 
 export class AppController {
   #playback;    // PlaybackAdapter
@@ -45,7 +46,7 @@ export class AppController {
         new Promise((_, reject) => setTimeout(() => reject(new Error('Lautsprecher-Erkennung timeout.')), 5000)),
       ]);
     } catch (err) {
-      console.warn('[AppController] Speaker discovery unavailable:', err.message);
+      log.warn('Speaker discovery unavailable:', err.message);
       appState.set({ speakers: [] });
     }
 
@@ -76,6 +77,7 @@ export class AppController {
       const results = await this.#search.search(query, type);
       appState.set({ searchResults: results, searchLoading: false });
     } catch (err) {
+      log.error('search failed:', { query, type, error: err.message });
       appState.set({ searchError: err.message, searchLoading: false, searchResults: [] });
       appState.notify(err.message || t('searchError'), 'error');
     }
@@ -87,6 +89,7 @@ export class AppController {
       const results = await this.#search.resolveUrl(url);
       appState.set({ searchResults: results, searchLoading: false });
     } catch (err) {
+      log.error('resolveUrl failed:', { url, error: err.message });
       appState.set({ searchError: err.message, searchLoading: false, searchResults: [] });
       appState.notify(err.message, 'error');
     }

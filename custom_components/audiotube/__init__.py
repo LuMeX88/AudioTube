@@ -46,6 +46,17 @@ async def _async_register(hass: HomeAssistant) -> None:
     if data.get("registered"):
         return
 
+    try:
+        import yt_dlp  # noqa: PLC0415
+
+        _LOGGER.info("AudioTube found yt-dlp %s", yt_dlp.version.__version__)
+    except ImportError:
+        _LOGGER.exception(
+            "AudioTube could not import yt-dlp. Search and playback will fail "
+            "until this is resolved; check that the requirement installed "
+            "correctly and restart Home Assistant."
+        )
+
     frontend_path = Path(__file__).parent / "frontend"
     await hass.http.async_register_static_paths(
         [StaticPathConfig(f"/{DOMAIN}", str(frontend_path), cache_headers=False)]
