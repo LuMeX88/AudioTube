@@ -57,13 +57,21 @@ export class InvidiousSearchProvider {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   async #fetchJson(url) {
+    const tokens = JSON.parse(localStorage.getItem('hassTokens') || '{}');
+    const headers = tokens.access_token
+      ? { Authorization: `Bearer ${tokens.access_token}` }
+      : {};
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
     let res;
     try {
-      res = await fetch(url, { signal: controller.signal });
+      res = await fetch(url, { headers, signal: controller.signal });
     } finally {
       clearTimeout(timer);
+    }
+    if (res.status === 401) {
+      throw new Error('Home Assistant-Anmeldung abgelaufen. Bitte Home Assistant neu laden.');
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
