@@ -4,7 +4,7 @@
  * websocket API using the existing frontend session.
  */
 import { defaultPlaybackState } from '../src/core/models.js';
-import { getAccessToken, isExternalApp } from './haAuth.js';
+import { getAccessToken } from './haAuth.js';
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/websocket`;
 
@@ -22,6 +22,7 @@ export class HAPlaybackAdapter {
   #seekGuardUntil = 0;
   #volumeTarget = null;
   #volumeGuardUntil = 0;
+  #authRetried = false;
 
   constructor(streamUrlResolver) {
     this.#streamUrlResolver = streamUrlResolver;
@@ -54,15 +55,17 @@ export class HAPlaybackAdapter {
         const message = JSON.parse(event.data);
         if (message.type === 'auth_ok') {
           clearTimeout(timeout);
+          this.#authRetried = false;
           this.#socket = socket;
           this.#startPolling();
           resolve();
           return;
         }
         if (message.type === 'auth_invalid') {
-          // Companion App tokens are short-lived; retry once with a forced refresh
-          // before giving up and bouncing to the login screen.
-          if (isExternalApp()) {
+          // The token can be stale for a moment after a refresh; retry once with a
+          // forced refresh before giving up and bouncing to the login screen.
+          if (!this.#authRetried) {
+            this.#authRetried = true;
             try {
               accessToken = await getAccessToken({ force: true });
               socket.send(JSON.stringify({ type: 'auth', access_token: accessToken }));
@@ -194,8 +197,8 @@ export class HAPlaybackAdapter {
       },
     });
     if (response.status === 401) {
-      // Companion App tokens are short-lived; force a fresh one and retry once.
-      if (isExternalApp() && !retried) {
+      // The token can be stale for a moment after a refresh; force a fresh one and retry once.
+      if (!retried) {
         await getAccessToken({ force: true });
         return this.#apiRequest(path, options, true);
       }

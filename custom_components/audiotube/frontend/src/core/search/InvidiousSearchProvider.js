@@ -5,7 +5,7 @@
  * @module core/search/InvidiousSearchProvider
  */
 import { log } from '../log.js';
-import { getAccessToken, isExternalApp } from '../../../js/haAuth.js';
+import { getAccessToken } from '../../../js/haAuth.js';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const PREPARE_TIMEOUT_MS = 180000;
@@ -84,8 +84,8 @@ export class InvidiousSearchProvider {
     }
     log.debug('response', { url, status: res.status });
     if (res.status === 401) {
-      // Companion App tokens are short-lived; force a fresh one and retry once.
-      if (isExternalApp() && !retried) {
+      // The token can be stale for a moment after a refresh; force a fresh one and retry once.
+      if (!retried) {
         await getAccessToken({ force: true });
         return this.#fetchJson(url, timeoutMs, true);
       }
