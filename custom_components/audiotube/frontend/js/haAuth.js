@@ -20,16 +20,34 @@
  */
 
 let authPromise = null;
+let connectionPromise = null;
+
+function topHassConnection() {
+  const topWindow = window.parent && window.parent !== window ? window.parent : window;
+  if (!topWindow.hassConnection) {
+    throw new Error('Home Assistant-Verbindung wurde nicht gefunden (window.hassConnection fehlt).');
+  }
+  return topWindow.hassConnection;
+}
 
 async function getAuth() {
   if (!authPromise) {
-    const topWindow = window.parent && window.parent !== window ? window.parent : window;
-    if (!topWindow.hassConnection) {
-      throw new Error('Home Assistant-Verbindung wurde nicht gefunden (window.hassConnection fehlt).');
-    }
-    authPromise = topWindow.hassConnection.then(({ auth }) => auth);
+    authPromise = topHassConnection().then(({ auth }) => auth);
   }
   return authPromise;
+}
+
+/**
+ * Returns Home Assistant's own live websocket Connection (home-assistant-js-websocket),
+ * so features like per-user synced storage can reuse the existing session
+ * instead of opening a second connection.
+ * @returns {Promise<import('home-assistant-js-websocket').Connection>}
+ */
+export async function getConnection() {
+  if (!connectionPromise) {
+    connectionPromise = topHassConnection().then(({ conn }) => conn);
+  }
+  return connectionPromise;
 }
 
 /**
