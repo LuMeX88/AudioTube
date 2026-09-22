@@ -124,12 +124,21 @@ async def async_resolve(hass: HomeAssistant, url: str) -> list[dict[str, Any]]:
 
 
 def _find_audio_file(directory: Path, video_id: str) -> Path | None:
-    """Return the cached audio file, ignoring leftover thumbnail images."""
-    for candidate in directory.glob(f"{video_id}.*"):
+    """Return the cached audio file, ignoring leftover thumbnail images.
+
+    Files are named "Title [video_id].ext" (see _ensure_audio_file_sync), so
+    look for the "[video_id]" marker anywhere in the filename rather than
+    requiring it as a strict prefix.
+    """
+    if not directory.is_dir():
+        return None
+    marker = f"[{video_id}]"
+    for candidate in directory.iterdir():
         if (
-            candidate.suffix.lower() in _AUDIO_SUFFIXES
-            and candidate.is_file()
+            candidate.is_file()
+            and candidate.suffix.lower() in _AUDIO_SUFFIXES
             and candidate.stat().st_size > 0
+            and marker in candidate.stem
         ):
             return candidate
     return None
@@ -149,7 +158,9 @@ def _ensure_audio_file_sync(directory: Path, video_id: str) -> Path:
         "no_warnings": True,
         "logger": _YtDlpLogger(),
         "format": "bestaudio/best",
-        "outtmpl": str(directory / f"{video_id}.%(ext)s"),
+        # Human-readable filename (shows up in HA's Media browser); the video
+        # ID stays embedded in brackets so _find_audio_file can still locate it.
+        "outtmpl": str(directory / "%(title)s [%(id)s].%(ext)s"),
         "extractor_args": _EXTRACTOR_ARGS,
         # Speakers read title, artist and cover art from the file's own tags.
         "writethumbnail": True,
@@ -164,11 +175,8 @@ def _ensure_audio_file_sync(directory: Path, video_id: str) -> Path:
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
 
-    mp3_path = directory / f"{video_id}.mp3"
-    if mp3_path.exists() and mp3_path.stat().st_size > 0:
-        _LOGGER.debug("Downloaded audio for %s: %s", video_id, mp3_path.name)
-        return mp3_path
     if downloaded := _find_audio_file(directory, video_id):
+        _LOGGER.debug("Downloaded audio for %s: %s", video_id, downloaded.name)
         return downloaded
     raise FileNotFoundError(f"Audio file for {video_id} was not created")
 
