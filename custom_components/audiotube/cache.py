@@ -20,10 +20,19 @@ PURGE_INTERVAL = timedelta(hours=6)
 def cache_dir(hass: HomeAssistant) -> Path:
     """Return the cache directory path. Does not touch disk.
 
-    Stored under <config>/media/ so downloaded tracks show up in Home
-    Assistant's Media browser (local media source), while still being
-    cleaned up by the same TTL purge as before.
+    Stored inside Home Assistant's actual registered local media root, so
+    downloaded tracks show up in the Media browser, while still being
+    cleaned up by the same TTL purge as before. That root is
+    `hass.config.media_dirs["local"]` — for Docker/HAOS/Supervised installs
+    (i.e. almost everyone) that's `/media`, a container mount point separate
+    from `/config`; only bare-metal Core installs default to
+    `<config>/media`. Using `hass.config.path("media", ...)` unconditionally
+    (an earlier version of this code did) silently wrote to a location the
+    Media browser never actually looks at for most installs.
     """
+    local_root = (hass.config.media_dirs or {}).get("local")
+    if local_root:
+        return Path(local_root) / CACHE_DIR_NAME
     return Path(hass.config.path("media", CACHE_DIR_NAME))
 
 
@@ -41,22 +50,26 @@ def _purge_expired_sync(path: Path) -> None:
 
 
 def _migrate_old_cache_sync(hass: HomeAssistant) -> None:
-    """One-time move of files from the pre-media cache location, if present."""
-    old_dir = Path(hass.config.path(CACHE_DIR_NAME))
-    if old_dir == cache_dir(hass) or not old_dir.is_dir():
-        return
+    """One-time move of files from earlier cache locations, if present."""
     new_dir = cache_dir(hass)
-    new_dir.mkdir(parents=True, exist_ok=True)
-    for file in old_dir.glob("*"):
+    old_dirs = [
+        Path(hass.config.path(CACHE_DIR_NAME)),  # pre-media location
+        Path(hass.config.path("media", CACHE_DIR_NAME)),  # earlier <config>/media attempt
+    ]
+    for old_dir in old_dirs:
+        if old_dir == new_dir or not old_dir.is_dir():
+            continue
+        new_dir.mkdir(parents=True, exist_ok=True)
+        for file in old_dir.glob("*"):
+            try:
+                if file.is_file():
+                    shutil.move(str(file), str(new_dir / file.name))
+            except OSError as err:
+                _LOGGER.warning("Failed to migrate cached file %s: %s", file, err)
         try:
-            if file.is_file():
-                shutil.move(str(file), str(new_dir / file.name))
-        except OSError as err:
-            _LOGGER.warning("Failed to migrate cached file %s: %s", file, err)
-    try:
-        old_dir.rmdir()
-    except OSError:
-        pass  # not empty or in use; leave it, nothing left to purge from it
+            old_dir.rmdir()
+        except OSError:
+            pass  # not empty or in use; leave it, nothing left to purge from it
 
 
 async def async_purge_expired(hass: HomeAssistant) -> None:
