@@ -4,8 +4,8 @@
  *        t('searchPlaceholder')
  *        t('trackCount', 12)   // calls string function if value is a fn
  */
-import de from './de.js';
-import en from './en.js';
+import de from './de.js?v=20260922-1';
+import en from './en.js?v=20260922-1';
 
 const LOCALES = { de, en };
 const STORAGE_KEY = 'tap.locale';

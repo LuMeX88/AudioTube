@@ -5,6 +5,7 @@
  * @module core/search/InvidiousSearchProvider
  */
 import { log } from '../log.js';
+import { getAccessToken, isExternalApp } from '../../../js/haAuth.js';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const PREPARE_TIMEOUT_MS = 180000;
@@ -65,17 +66,10 @@ export class InvidiousSearchProvider {
 
   // ─── Private helpers ──────────────────────────────────────────────────────
 
-  async #fetchJson(url, timeoutMs = DEFAULT_TIMEOUT_MS) {
-    const tokens = JSON.parse(localStorage.getItem('hassTokens') || '{}');
-    const expiresInMs = tokens.expires ? tokens.expires - Date.now() : null;
-    log.debug('request', {
-      url,
-      hasToken: Boolean(tokens.access_token),
-      expiresInMs,
-    });
-    const headers = tokens.access_token
-      ? { Authorization: `Bearer ${tokens.access_token}` }
-      : {};
+  async #fetchJson(url, timeoutMs = DEFAULT_TIMEOUT_MS, retried = false) {
+    const accessToken = await getAccessToken();
+    log.debug('request', { url, hasToken: Boolean(accessToken) });
+    const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -90,7 +84,12 @@ export class InvidiousSearchProvider {
     }
     log.debug('response', { url, status: res.status });
     if (res.status === 401) {
-      log.error('unauthorized', { url, hasToken: Boolean(tokens.access_token), expiresInMs });
+      // Companion App tokens are short-lived; force a fresh one and retry once.
+      if (isExternalApp() && !retried) {
+        await getAccessToken({ force: true });
+        return this.#fetchJson(url, timeoutMs, true);
+      }
+      log.error('unauthorized', { url, hasToken: Boolean(accessToken) });
       throw new Error('Home Assistant-Anmeldung abgelaufen. Bitte Home Assistant neu laden.');
     }
     if (!res.ok) {
@@ -101,3 +100,4 @@ export class InvidiousSearchProvider {
     return res.json();
   }
 }
+

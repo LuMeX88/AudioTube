@@ -3,8 +3,8 @@
  * @module apps/local/js/ui/App
  */
 import { appState }    from '../../src/core/state/AppState.js';
-import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js';
-import { icon }        from './icons.js';
+import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260922-1';
+import { icon }        from './icons.js?v=20260922-1';
 import { renderSearch }   from './SearchView.js';
 import { renderQueue }    from './QueueView.js';
 import { renderFavorites} from './FavoritesView.js';
@@ -21,7 +21,10 @@ export function renderApp(ctrl) {
           <span class="logo-icon">${icon('music', 22)}</span>
           <span class="logo-text">AudioTube</span>
         </div>
-        <nav class="app-nav" role="navigation" aria-label="${t('navSearch')}">
+        <button class="nav-toggle" id="navToggle" aria-label="${t('navMenu')}" aria-expanded="false" aria-controls="appNav">
+          ${icon('menu', 20)}
+        </button>
+        <nav class="app-nav" id="appNav" role="navigation" aria-label="${t('navSearch')}">
           <button class="nav-btn active" data-view="search"    aria-label="${t('navSearch')}">${t('navSearch')}</button>
           <button class="nav-btn"        data-view="queue"     aria-label="${t('navQueue')}">${t('navQueue')}</button>
           <button class="nav-btn"        data-view="favorites" aria-label="${t('navFavorites')}">${t('navFavorites')}</button>
@@ -66,10 +69,29 @@ export function renderApp(ctrl) {
     });
     appState.set({ activeView: view });
     views[view]?.();
+    closeNavMenu();
   }
 
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => navigate(btn.dataset.view));
+  });
+
+  // Hamburger menu — only visible/interactive on narrow screens (see CSS);
+  // the nav stays a normal always-expanded row on wider viewports.
+  const appNav = document.getElementById('appNav');
+  const navToggle = document.getElementById('navToggle');
+  function closeNavMenu() {
+    appNav.classList.remove('open');
+    navToggle.setAttribute('aria-expanded', 'false');
+  }
+  navToggle.addEventListener('click', () => {
+    const open = appNav.classList.toggle('open');
+    navToggle.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', e => {
+    if (!appNav.classList.contains('open')) return;
+    if (appNav.contains(e.target) || navToggle.contains(e.target)) return;
+    closeNavMenu();
   });
 
   // Language switch — re-render the whole app in the new locale

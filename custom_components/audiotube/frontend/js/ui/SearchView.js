@@ -2,9 +2,9 @@
  * Search view — search bar, filter tabs, and result cards.
  */
 import { appState } from '../../src/core/state/AppState.js';
-import { t }        from '../../src/core/i18n/i18n.js';
+import { t }        from '../../src/core/i18n/i18n.js?v=20260922-1';
 import { formatDuration, isoThumb } from './helpers.js';
-import { icon }     from './icons.js';
+import { icon }     from './icons.js?v=20260922-1';
 import { openPlaylistPicker } from './PlaylistPicker.js';
 import { trackFromSearchResult } from '../../src/core/models.js';
 

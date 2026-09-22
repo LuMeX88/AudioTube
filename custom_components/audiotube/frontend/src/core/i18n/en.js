@@ -85,6 +85,7 @@ export default {
   navQueue: 'Queue',
   navFavorites: 'Favorites',
   navPlaylists: 'Playlists',
+  navMenu: 'Menu',
 
   // Settings
   settings: 'Settings',

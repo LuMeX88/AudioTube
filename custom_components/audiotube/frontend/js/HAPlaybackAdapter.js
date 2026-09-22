@@ -4,6 +4,7 @@
  * websocket API using the existing frontend session.
  */
 import { defaultPlaybackState } from '../src/core/models.js';
+import { getAccessToken, isExternalApp } from './haAuth.js';
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/websocket`;
 
@@ -19,6 +20,8 @@ export class HAPlaybackAdapter {
   #lastRemoteStatus = 'idle';
   #seekTarget = null;
   #seekGuardUntil = 0;
+  #volumeTarget = null;
+  #volumeGuardUntil = 0;
 
   constructor(streamUrlResolver) {
     this.#streamUrlResolver = streamUrlResolver;
@@ -27,8 +30,8 @@ export class HAPlaybackAdapter {
   async #connect() {
     if (this.#socket?.readyState === WebSocket.OPEN) return;
 
-    const tokens = JSON.parse(localStorage.getItem('hassTokens') || '{}');
-    if (!tokens.access_token || (tokens.expires && tokens.expires <= Date.now())) {
+    let accessToken = await getAccessToken();
+    if (!accessToken) {
       window.top.location.href = '/';
       throw new Error('Home Assistant-Anmeldung abgelaufen.');
     }
@@ -45,9 +48,9 @@ export class HAPlaybackAdapter {
         reject(error);
       };
       socket.onopen = () => {
-        socket.send(JSON.stringify({ type: 'auth', access_token: tokens.access_token }));
+        socket.send(JSON.stringify({ type: 'auth', access_token: accessToken }));
       };
-      socket.onmessage = event => {
+      socket.onmessage = async event => {
         const message = JSON.parse(event.data);
         if (message.type === 'auth_ok') {
           clearTimeout(timeout);
@@ -57,6 +60,18 @@ export class HAPlaybackAdapter {
           return;
         }
         if (message.type === 'auth_invalid') {
+          // Companion App tokens are short-lived; retry once with a forced refresh
+          // before giving up and bouncing to the login screen.
+          if (isExternalApp()) {
+            try {
+              accessToken = await getAccessToken({ force: true });
+              socket.send(JSON.stringify({ type: 'auth', access_token: accessToken }));
+              return;
+            } catch (refreshError) {
+              fail(refreshError);
+              return;
+            }
+          }
           fail(new Error('Home Assistant-Anmeldung ist abgelaufen. Bitte Home Assistant neu laden.'));
           window.top.location.href = '/';
           return;
@@ -137,8 +152,13 @@ export class HAPlaybackAdapter {
   async previous() { await this.#callService('media_previous_track'); }
 
   async setVolume(level) {
-    await this.#callService('volume_set', { volume_level: Math.max(0, Math.min(100, level)) / 100 });
-    this.#patchState({ volume: level });
+    const target = Math.max(0, Math.min(100, level));
+    // The speaker keeps reporting the old volume for a moment; ignore that
+    // until it catches up, otherwise the slider snaps back (e.g. to 16%).
+    this.#volumeTarget = target;
+    this.#volumeGuardUntil = Date.now() + 5000;
+    await this.#callService('volume_set', { volume_level: target / 100 });
+    this.#patchState({ volume: target });
   }
 
   async seek(positionSec) {
@@ -159,21 +179,26 @@ export class HAPlaybackAdapter {
     });
   }
 
-  async #apiRequest(path, options = {}) {
-    const tokens = JSON.parse(localStorage.getItem('hassTokens') || '{}');
-    if (!tokens.access_token || (tokens.expires && tokens.expires <= Date.now())) {
+  async #apiRequest(path, options = {}, retried = false) {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
       window.top.location.href = '/';
       throw new Error('Home Assistant-Anmeldung abgelaufen.');
     }
     const response = await fetch(path, {
       ...options,
       headers: {
-        Authorization: `Bearer ${tokens.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         ...(options.headers || {}),
       },
     });
     if (response.status === 401) {
+      // Companion App tokens are short-lived; force a fresh one and retry once.
+      if (isExternalApp() && !retried) {
+        await getAccessToken({ force: true });
+        return this.#apiRequest(path, options, true);
+      }
       window.top.location.href = '/';
       throw new Error('Home Assistant-Anmeldung abgelaufen.');
     }
@@ -225,12 +250,22 @@ export class HAPlaybackAdapter {
         : remoteStatus === 'idle' ? 'idle'
         : this.#state.status;
 
+      let volume = Math.round((attributes.volume_level ?? this.#state.volume / 100) * 100);
+      if (this.#volumeTarget !== null) {
+        const caughtUp = Math.abs(volume - this.#volumeTarget) < 3;
+        if (caughtUp || Date.now() > this.#volumeGuardUntil) {
+          this.#volumeTarget = null;
+        } else {
+          volume = this.#state.volume;
+        }
+      }
+
       this.#patchState({
         status,
         currentTrack: this.#state.currentTrack ?? this.#trackFromRemote(attributes, durationSec),
         positionSec: Math.min(positionSec, durationSec || positionSec),
         durationSec,
-        volume: Math.round((attributes.volume_level ?? this.#state.volume / 100) * 100),
+        volume,
       });
 
       if (this.#lastRemoteStatus === 'playing' && remoteStatus === 'idle') {

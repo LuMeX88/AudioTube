@@ -87,6 +87,7 @@ export default {
   navQueue: 'Warteschlange',
   navFavorites: 'Favoriten',
   navPlaylists: 'Playlists',
+  navMenu: 'Menü',
 
   // Settings
   settings: 'Einstellungen',

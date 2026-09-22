@@ -3,8 +3,8 @@
  * Lets the user pick an existing playlist or create a new one, then adds the track.
  */
 import { appState } from '../../src/core/state/AppState.js';
-import { t }        from '../../src/core/i18n/i18n.js';
-import { icon }     from './icons.js';
+import { t }        from '../../src/core/i18n/i18n.js?v=20260922-1';
+import { icon }     from './icons.js?v=20260922-1';
 import { trackFromSearchResult } from '../../src/core/models.js';
 import { showPrompt } from './dialogs.js';
 
