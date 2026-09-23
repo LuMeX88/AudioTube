@@ -4,7 +4,7 @@
  * websocket API using the existing frontend session.
  */
 import { defaultPlaybackState } from '../src/core/models.js';
-import { getAccessToken } from './haAuth.js';
+import { getAccessToken } from './haAuth.js?v=20260923-1';
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/websocket`;
 

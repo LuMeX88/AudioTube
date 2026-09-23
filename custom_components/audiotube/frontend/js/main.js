@@ -5,10 +5,10 @@
  */
 import { config }                   from './config.js';
 import { LocalStorageAdapter }      from '../src/adapters/local/LocalStorageAdapter.js?v=20260914-3';
-import { HAUserDataStorageAdapter } from './HAUserDataStorageAdapter.js?v=20260922-1';
+import { HAUserDataStorageAdapter } from './HAUserDataStorageAdapter.js?v=20260923-1';
 import { LocalPlaybackAdapter }     from '../src/adapters/local/LocalPlaybackAdapter.js';
-import { HAPlaybackAdapter }        from './HAPlaybackAdapter.js?v=20260922-3';
-import { InvidiousSearchProvider }  from '../src/core/search/InvidiousSearchProvider.js?v=20260922-2';
+import { HAPlaybackAdapter }        from './HAPlaybackAdapter.js?v=20260923-1';
+import { InvidiousSearchProvider }  from '../src/core/search/InvidiousSearchProvider.js?v=20260923-1';
 import { SearchClient }             from '../src/core/search/SearchClient.js';
 import { AppController }            from './AppController.js';
 import { appState }                 from '../src/core/state/AppState.js';

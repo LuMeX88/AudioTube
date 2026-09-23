@@ -14,3 +14,6 @@ deploy/
 Thumbs.db
 .vscode/
 *.swp
+
+# Local-only session/dev notes — never pushed
+SESSION_NOTES.md

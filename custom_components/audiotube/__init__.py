@@ -71,8 +71,10 @@ async def _async_register(hass: HomeAssistant) -> None:
     await hass.async_add_executor_job(_check_yt_dlp_import)
 
     frontend_path = Path(__file__).parent / "frontend"
+    # Cacheable: every frontend file that changes gets a bumped ?v= query string,
+    # so real HTTP caching here is safe and fixes slow repeat loads.
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(f"/{DOMAIN}", str(frontend_path), cache_headers=False)]
+        [StaticPathConfig(f"/{DOMAIN}", str(frontend_path), cache_headers=True)]
     )
 
     hass.http.register_view(AudioTubeSearchView())

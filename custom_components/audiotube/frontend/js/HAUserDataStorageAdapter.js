@@ -15,7 +15,7 @@
  *
  * @module js/HAUserDataStorageAdapter
  */
-import { getConnection } from './haAuth.js';
+import { getConnection } from './haAuth.js?v=20260923-1';
 import { LocalStorageAdapter } from '../src/adapters/local/LocalStorageAdapter.js?v=20260914-3';
 
 const KEY_FAVORITES = 'audiotube_favorites';

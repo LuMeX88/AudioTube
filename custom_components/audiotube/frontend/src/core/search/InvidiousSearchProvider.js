@@ -5,7 +5,7 @@
  * @module core/search/InvidiousSearchProvider
  */
 import { log } from '../log.js';
-import { getAccessToken } from '../../../js/haAuth.js';
+import { getAccessToken } from '../../../js/haAuth.js?v=20260923-1';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const PREPARE_TIMEOUT_MS = 180000;
