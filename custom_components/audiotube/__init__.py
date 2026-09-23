@@ -13,6 +13,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .api import (
     AudioTubeAudioView,
+    AudioTubeIndexView,
     AudioTubePrepareView,
     AudioTubeResolveView,
     AudioTubeSearchView,
@@ -71,6 +72,10 @@ async def _async_register(hass: HomeAssistant) -> None:
     await hass.async_add_executor_job(_check_yt_dlp_import)
 
     frontend_path = Path(__file__).parent / "frontend"
+    # index.html is registered as its own no-cache view BEFORE the static
+    # path below, so this more specific route wins over the static handler
+    # for that one file (see AudioTubeIndexView for why).
+    hass.http.register_view(AudioTubeIndexView(frontend_path / "index.html"))
     # Cacheable: every frontend file that changes gets a bumped ?v= query string,
     # so real HTTP caching here is safe and fixes slow repeat loads.
     await hass.http.async_register_static_paths(

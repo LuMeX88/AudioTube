@@ -3,13 +3,14 @@
  * @module apps/local/js/ui/App
  */
 import { appState }    from '../../src/core/state/AppState.js';
-import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260922-1';
-import { icon }        from './icons.js?v=20260922-1';
-import { renderSearch }   from './SearchView.js';
-import { renderQueue }    from './QueueView.js';
-import { renderFavorites} from './FavoritesView.js';
-import { renderPlaylists} from './PlaylistsView.js';
-import { renderPlayerBar} from './PlayerBar.js';
+import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260923-2';
+import { icon }        from './icons.js?v=20260923-2';
+import { showConfirm } from './dialogs.js?v=20260923-2';
+import { renderSearch }   from './SearchView.js?v=20260923-2';
+import { renderQueue }    from './QueueView.js?v=20260923-2';
+import { renderFavorites} from './FavoritesView.js?v=20260923-2';
+import { renderPlaylists} from './PlaylistsView.js?v=20260923-2';
+import { renderPlayerBar} from './PlayerBar.js?v=20260923-2';
 import { renderNotification } from './Notification.js';
 
 export function renderApp(ctrl) {
@@ -30,22 +31,20 @@ export function renderApp(ctrl) {
           <button class="nav-btn"        data-view="favorites" aria-label="${t('navFavorites')}">${t('navFavorites')}</button>
           <button class="nav-btn"        data-view="playlists" aria-label="${t('navPlaylists')}">${t('navPlaylists')}</button>
         </nav>
-        <div class="lang-switch" role="group" aria-label="${t('language')}">
-          <span class="lang-icon" aria-hidden="true">${icon('globe', 16)}</span>
-          ${availableLocales().map(loc => `
-            <button class="lang-btn ${loc === getLocale() ? 'active' : ''}" data-locale="${loc}"
-                    aria-pressed="${loc === getLocale()}">${loc.toUpperCase()}</button>`).join('')}
-        </div>
         <div class="speaker-badge" id="speakerBadge" role="button" tabindex="0" aria-label="${t('selectSpeaker')}">
           <span class="speaker-icon">${icon('speaker', 16)}</span>
           <span id="speakerName">–</span>
         </div>
+        <button class="btn-icon settings-btn" id="settingsBtn" title="${t('openSettings')}" aria-label="${t('openSettings')}">
+          ${icon('gear', 20)}
+        </button>
       </header>
 
       <main class="app-main" id="mainContent" role="main"></main>
 
       <div id="notification" class="notification hidden" aria-live="polite"></div>
       <div id="speakerModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="${t('selectSpeaker')}"></div>
+      <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="${t('settings')}"></div>
 
       <footer class="player-bar" id="playerBar"></footer>
     </div>
@@ -95,12 +94,6 @@ export function renderApp(ctrl) {
   });
 
   // Language switch — re-render the whole app in the new locale
-  document.querySelectorAll('.lang-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.locale === getLocale()) return;
-      setLocale(btn.dataset.locale);
-    });
-  });
   const offLocale = onLocaleChange(() => {
     offLocale();          // avoid stacking listeners across re-renders
     renderApp(ctrl);
@@ -114,6 +107,13 @@ export function renderApp(ctrl) {
   });
   speakerModal.addEventListener('click', e => {
     if (e.target === speakerModal) speakerModal.classList.add('hidden');
+  });
+
+  // Settings modal (language, theme, backup)
+  const settingsModal = document.getElementById('settingsModal');
+  document.getElementById('settingsBtn').addEventListener('click', () => openSettingsModal(settingsModal, ctrl));
+  settingsModal.addEventListener('click', e => {
+    if (e.target === settingsModal) settingsModal.classList.add('hidden');
   });
 
   // Speaker name in header
@@ -177,6 +177,103 @@ function openSpeakerModal(modal, ctrl) {
   });
 
   modal.querySelector('#closeSpeakerModal').addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+}
+
+async function openSettingsModal(modal, ctrl) {
+  const settings = await ctrl.getSettings();
+  const theme = settings?.theme || 'system';
+
+  modal.innerHTML = `
+    <div class="modal-box settings-box">
+      <h2 class="modal-title">${t('settings')}</h2>
+
+      <section class="settings-section">
+        <h3 class="settings-section-title">${t('language')}</h3>
+        <div class="lang-switch" role="group" aria-label="${t('language')}">
+          <span class="lang-icon" aria-hidden="true">${icon('globe', 16)}</span>
+          ${availableLocales().map(loc => `
+            <button class="lang-btn ${loc === getLocale() ? 'active' : ''}" data-locale="${loc}"
+                    aria-pressed="${loc === getLocale()}">${loc.toUpperCase()}</button>`).join('')}
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-section-title">${t('theme')}</h3>
+        <div class="theme-switch" role="group" aria-label="${t('theme')}">
+          ${['light', 'dark', 'system'].map(th => `
+            <button class="theme-btn ${th === theme ? 'active' : ''}" data-theme="${th}"
+                    aria-pressed="${th === theme}">${t(`theme${th.charAt(0).toUpperCase()}${th.slice(1)}`)}</button>`).join('')}
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-section-title">${t('backup')}</h3>
+        <p class="settings-hint">${t('backupHint')}</p>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="exportYamlBtn">${icon('download', 16)} ${t('exportYaml')}</button>
+          <button class="btn-secondary" id="importYamlBtn">${icon('upload', 16)} ${t('importYaml')}</button>
+          <input type="file" id="importYamlFile" accept=".yaml,.yml,text/yaml" class="visually-hidden" />
+        </div>
+      </section>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="closeSettingsModal">${t('close')}</button>
+      </div>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+
+  modal.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.locale === getLocale()) return;
+      setLocale(btn.dataset.locale); // triggers a full re-render via onLocaleChange
+    });
+  });
+
+  modal.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await ctrl.setTheme(btn.dataset.theme);
+      modal.querySelectorAll('.theme-btn').forEach(b => {
+        b.classList.toggle('active', b === btn);
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+    });
+  });
+
+  modal.querySelector('#exportYamlBtn').addEventListener('click', () => {
+    const yaml = ctrl.exportBackupYaml();
+    const blob = new Blob([yaml], { type: 'text/yaml' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `audiotube-backup-${stamp}.yaml`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  const fileInput = modal.querySelector('#importYamlFile');
+  modal.querySelector('#importYamlBtn').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const replace = await showConfirm(t('importReplaceConfirm'));
+      const { favoritesCount, playlistsCount } = await ctrl.importBackupYaml(text, { replace });
+      appState.notify(t('importSuccess', favoritesCount, playlistsCount), 'info');
+    } catch (err) {
+      appState.notify(t('importError'), 'error');
+    }
+  });
+
+  modal.querySelector('#closeSettingsModal').addEventListener('click', () => {
     modal.classList.add('hidden');
   });
 }

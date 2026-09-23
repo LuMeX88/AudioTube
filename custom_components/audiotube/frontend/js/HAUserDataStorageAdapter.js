@@ -16,7 +16,7 @@
  * @module js/HAUserDataStorageAdapter
  */
 import { getConnection } from './haAuth.js?v=20260923-1';
-import { LocalStorageAdapter } from '../src/adapters/local/LocalStorageAdapter.js?v=20260914-3';
+import { LocalStorageAdapter } from '../src/adapters/local/LocalStorageAdapter.js?v=20260923-2';
 
 const KEY_FAVORITES = 'audiotube_favorites';
 const KEY_PLAYLISTS = 'audiotube_playlists';
@@ -38,6 +38,26 @@ async function setUserData(key, value) {
     await conn.sendMessagePromise({ type: 'frontend/set_user_data', key, value });
   } catch (err) {
     console.error(`[HAUserDataStorageAdapter] Failed to save "${key}":`, err.message);
+  }
+}
+
+/**
+ * Subscribes to live push updates for a user-data key via HA's
+ * `frontend/subscribe_user_data` websocket command, so changes saved from
+ * any other device logged into the same HA account arrive here without a
+ * manual refresh. Returns an unsubscribe function (always resolves, even on
+ * failure, so callers don't need try/catch).
+ */
+async function subscribeUserData(key, callback) {
+  try {
+    const conn = await getConnection();
+    return await conn.subscribeMessage(msg => callback(msg.value ?? []), {
+      type: 'frontend/subscribe_user_data',
+      key,
+    });
+  } catch (err) {
+    console.warn(`[HAUserDataStorageAdapter] Failed to subscribe to "${key}":`, err.message);
+    return () => {};
   }
 }
 
@@ -75,6 +95,14 @@ export class HAUserDataStorageAdapter {
 
   async getSettings()          { return this.#local.getSettings(); }
   async saveSettings(settings) { return this.#local.saveSettings(settings); }
+
+  // ─── Live sync (optional capability, not part of the base interface) ──────
+
+  /** @param {(tracks: object[]) => void} callback @returns {Promise<Function>} unsubscribe */
+  subscribeFavorites(callback) { return subscribeUserData(KEY_FAVORITES, callback); }
+
+  /** @param {(playlists: object[]) => void} callback @returns {Promise<Function>} unsubscribe */
+  subscribePlaylists(callback) { return subscribeUserData(KEY_PLAYLISTS, callback); }
 
   // ─── Extra ─────────────────────────────────────────────────────────────────
 

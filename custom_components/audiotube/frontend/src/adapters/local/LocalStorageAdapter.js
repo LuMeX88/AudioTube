@@ -62,6 +62,7 @@ export class LocalStorageAdapter {
 function defaultSettings() {
   return {
     selectedSpeakerId: null,
+    theme: 'system', // 'light' | 'dark' | 'system'
     ai: {
       enabled: false,
       baseUrl: '',   // e.g. https://your-endpoint.example.com/openai

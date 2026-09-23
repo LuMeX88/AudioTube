@@ -6,8 +6,25 @@
 
 import { appState } from '../src/core/state/AppState.js';
 import { createQueueItem, createPlaylist, trackFromSearchResult } from '../src/core/models.js';
-import { t } from '../src/core/i18n/i18n.js?v=20260922-1';
+import { t } from '../src/core/i18n/i18n.js?v=20260923-2';
 import { log } from '../src/core/log.js';
+import { stringify as toYaml, parse as fromYaml } from '../src/core/yaml.js?v=20260923-1';
+
+const THEMES = ['light', 'dark', 'system'];
+
+function applyTheme(theme) {
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', theme);
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+}
+
+/** Combine two id-keyed lists, keeping existing entries and adding only new ids. */
+function mergeById(existing, incoming) {
+  const existingIds = new Set(existing.map(item => item.id));
+  return [...existing, ...incoming.filter(item => !existingIds.has(item.id))];
+}
 
 export class AppController {
   #playback;    // PlaybackAdapter
@@ -32,11 +49,18 @@ export class AppController {
     ]);
 
     appState.set({ favorites, playlists, queue });
+    applyTheme(settings?.theme);
 
     // Apply settings to search client
     if (settings?.ai) {
       this.#search.updateAiConfig(settings.ai);
     }
+
+    // Live sync: if the storage adapter supports it (HA per-user storage),
+    // pick up favorites/playlists changes made from any other device logged
+    // into the same account, without needing to leave and reopen this panel.
+    this.#storage.subscribeFavorites?.(favs => appState.set({ favorites: favs }));
+    this.#storage.subscribePlaylists?.(pls  => appState.set({ playlists: pls }));
 
     // Do not block the whole app on HA/Sonos discovery. The UI remains usable
     // while the iframe websocket authenticates or reports an error.
@@ -316,10 +340,59 @@ export class AppController {
 
   // ─── Settings ─────────────────────────────────────────────────────────────
 
+  async getSettings() {
+    return this.#storage.getSettings();
+  }
+
   async saveSettings(settings) {
     await this.#storage.saveSettings(settings);
     if (settings.ai) this.#search.updateAiConfig(settings.ai);
     appState.notify('Einstellungen gespeichert.', 'info');
+  }
+
+  async setTheme(theme) {
+    if (!THEMES.includes(theme)) return;
+    applyTheme(theme);
+    const settings = await this.#storage.getSettings();
+    await this.#storage.saveSettings({ ...settings, theme });
+  }
+
+  // ─── Backup (export/import favorites & playlists as YAML) ─────────────────
+
+  /** @returns {string} a YAML document with the current favorites and playlists. */
+  exportBackupYaml() {
+    return toYaml({
+      favorites: appState.get('favorites'),
+      playlists: appState.get('playlists'),
+    });
+  }
+
+  /**
+   * Imports favorites/playlists from a previously exported YAML document.
+   * @param {string} yamlText
+   * @param {{ replace?: boolean }} [options] - replace=true overwrites
+   *   existing data instead of merging (deduping by id) into it.
+   * @returns {{ favoritesCount: number, playlistsCount: number }}
+   */
+  async importBackupYaml(yamlText, { replace = false } = {}) {
+    const data = fromYaml(yamlText);
+    const importedFavorites = Array.isArray(data.favorites) ? data.favorites : [];
+    const importedPlaylists = Array.isArray(data.playlists) ? data.playlists : [];
+
+    const favorites = replace
+      ? importedFavorites
+      : mergeById(appState.get('favorites'), importedFavorites);
+    const playlists = replace
+      ? importedPlaylists
+      : mergeById(appState.get('playlists'), importedPlaylists);
+
+    appState.set({ favorites, playlists });
+    await Promise.all([
+      this.#storage.saveFavorites(favorites),
+      this.#storage.savePlaylists(playlists),
+    ]);
+
+    return { favoritesCount: importedFavorites.length, playlistsCount: importedPlaylists.length };
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────

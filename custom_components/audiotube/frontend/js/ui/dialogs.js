@@ -7,7 +7,7 @@
  * playlist" and "clear queue". These helpers render an in-app modal
  * instead and resolve a Promise with the result.
  */
-import { t } from '../../src/core/i18n/i18n.js?v=20260922-1';
+import { t } from '../../src/core/i18n/i18n.js?v=20260923-2';
 
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

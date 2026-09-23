@@ -89,6 +89,7 @@ export default {
 
   // Settings
   settings: 'Settings',
+  openSettings: 'Settings',
   aiSettings: 'AI settings (OpenAI-compatible)',
   aiBaseUrl: 'API base URL',
   aiApiKey: 'API key',
@@ -96,6 +97,21 @@ export default {
   aiEnabled: 'Enable AI search enhancement',
   save: 'Save',
   cancel: 'Cancel',
+
+  // Theme
+  theme: 'Theme',
+  themeLight: 'Light',
+  themeDark: 'Dark',
+  themeSystem: 'System',
+
+  // Backup (export/import favorites & playlists)
+  backup: 'Backup',
+  backupHint: 'Save your favorites and playlists to a file, or restore them from one.',
+  exportYaml: 'Export as YAML',
+  importYaml: 'Import from YAML',
+  importReplaceConfirm: 'Replace your current favorites and playlists with the imported file? Choose “Cancel” to merge instead.',
+  importSuccess: (favs, pls) => `Imported ${favs} favorite(s) and ${pls} playlist(s).`,
+  importError: 'This file could not be read. Please make sure it’s a valid AudioTube YAML backup.',
 
   // Language
   language: 'Language',

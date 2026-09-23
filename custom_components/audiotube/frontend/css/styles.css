@@ -34,7 +34,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --clr-bg:          #121212;
     --clr-surface:     #1e1e1e;
     --clr-surface-2:   #2a2a2a;
@@ -47,6 +47,22 @@
     --clr-active:      #1a2e40;
     --clr-active-text: #64b5f6;
   }
+}
+
+/* Explicit theme picker override (Settings → Theme), independent of the OS
+   preference used by the media query above. "system" leaves no attribute. */
+:root[data-theme="dark"] {
+  --clr-bg:          #121212;
+  --clr-surface:     #1e1e1e;
+  --clr-surface-2:   #2a2a2a;
+  --clr-border:      #3a3a3a;
+  --clr-text:        #e8e8e8;
+  --clr-text-sub:    #999;
+  --clr-accent:      #64b5f6;
+  --clr-accent-dark: #42a5f5;
+  --clr-accent-text: #000;
+  --clr-active:      #1a2e40;
+  --clr-active-text: #64b5f6;
 }
 
 /* ─── Reset & base ───────────────────────────────────────────────────────── */
@@ -761,6 +777,45 @@ input, button, select { outline-offset: 2px; }
 }
 .lang-btn:hover  { color: var(--clr-text); }
 .lang-btn.active { background: var(--clr-accent); color: var(--clr-accent-text); }
+
+/* Theme switch (Settings modal) — same look as the language switch */
+.theme-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--clr-border);
+  border-radius: 20px;
+  background: var(--clr-surface-2);
+  width: fit-content;
+}
+.theme-btn {
+  border: none;
+  background: transparent;
+  color: var(--clr-text-sub);
+  font-size: .78rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 14px;
+  transition: background .12s, color .12s;
+}
+.theme-btn:hover  { color: var(--clr-text); }
+.theme-btn.active { background: var(--clr-accent); color: var(--clr-accent-text); }
+
+/* Settings modal sections */
+.settings-box { width: 420px; max-height: 80vh; overflow-y: auto; }
+.settings-section { margin-bottom: 18px; }
+.settings-section-title { font-size: .8rem; font-weight: 700; color: var(--clr-text-sub); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
+.settings-hint { font-size: .8rem; color: var(--clr-text-sub); margin-bottom: 10px; }
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* Primary/secondary buttons: align icon + label */
 .btn-primary, .btn-secondary {

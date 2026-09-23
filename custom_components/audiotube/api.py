@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 
 from aiohttp import web
 
@@ -21,6 +22,34 @@ _CONTENT_TYPES = {
     ".webm": "audio/webm",
     ".m4a": "audio/mp4",
 }
+
+
+class AudioTubeIndexView(HomeAssistantView):
+    """Serves the panel's index.html with no-cache headers.
+
+    Every other file under the /audiotube static path is safe to send with
+    a long-lived Cache-Control (cache_headers=True in __init__.py), because
+    every one of them is loaded through a versioned `?v=` query string that
+    changes whenever the file changes. index.html itself has no such query
+    string (it's the fixed iframe panel URL), so if it were cached the same
+    way, browsers/WebViews could keep serving a stale entry document loading
+    stale versioned imports too — for up to the static path's max-age.
+    Registered before the static path so this more specific route wins.
+    """
+
+    url = "/audiotube/index.html"
+    name = "audiotube:index"
+    requires_auth = False
+
+    def __init__(self, index_path: Path) -> None:
+        """Store the on-disk path of index.html."""
+        self._index_path = index_path
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Return index.html, always revalidated (cheap ETag/304, never stale)."""
+        hass: HomeAssistant = request.app[KEY_HASS]
+        text = await hass.async_add_executor_job(self._index_path.read_text, "utf-8")
+        return web.Response(text=text, content_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
 class AudioTubeSearchView(HomeAssistantView):

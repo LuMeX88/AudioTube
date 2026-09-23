@@ -4,16 +4,16 @@
  * then renders the UI.
  */
 import { config }                   from './config.js';
-import { LocalStorageAdapter }      from '../src/adapters/local/LocalStorageAdapter.js?v=20260914-3';
-import { HAUserDataStorageAdapter } from './HAUserDataStorageAdapter.js?v=20260923-1';
+import { LocalStorageAdapter }      from '../src/adapters/local/LocalStorageAdapter.js?v=20260923-2';
+import { HAUserDataStorageAdapter } from './HAUserDataStorageAdapter.js?v=20260923-2';
 import { LocalPlaybackAdapter }     from '../src/adapters/local/LocalPlaybackAdapter.js';
 import { HAPlaybackAdapter }        from './HAPlaybackAdapter.js?v=20260923-1';
 import { InvidiousSearchProvider }  from '../src/core/search/InvidiousSearchProvider.js?v=20260923-1';
 import { SearchClient }             from '../src/core/search/SearchClient.js';
-import { AppController }            from './AppController.js';
+import { AppController }            from './AppController.js?v=20260923-2';
 import { appState }                 from '../src/core/state/AppState.js';
-import { t }                        from '../src/core/i18n/i18n.js?v=20260922-1';
-import { renderApp }                from './ui/App.js?v=20260922-1';
+import { t }                        from '../src/core/i18n/i18n.js?v=20260923-2';
+import { renderApp }                from './ui/App.js?v=20260923-2';
 
 async function bootstrap() {
   const inHomeAssistant = location.pathname.startsWith('/audiotube/');
