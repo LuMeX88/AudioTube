@@ -16,10 +16,11 @@
  * @module js/HAUserDataStorageAdapter
  */
 import { getConnection } from './haAuth.js?v=20260923-1';
-import { LocalStorageAdapter } from '../src/adapters/local/LocalStorageAdapter.js?v=20260923-2';
+import { LocalStorageAdapter } from '../src/adapters/local/LocalStorageAdapter.js?v=20260924-1';
 
 const KEY_FAVORITES = 'audiotube_favorites';
 const KEY_PLAYLISTS = 'audiotube_playlists';
+const KEY_GROUPS    = 'audiotube_groups';
 
 async function getUserData(key, fallback) {
   try {
@@ -90,6 +91,17 @@ export class HAUserDataStorageAdapter {
     await setUserData(KEY_PLAYLISTS, playlists);
   }
 
+  async getGroups() {
+    const groups = await getUserData(KEY_GROUPS, await this.#local.getGroups());
+    this.#local.saveGroups(groups);
+    return groups;
+  }
+
+  async saveGroups(groups) {
+    this.#local.saveGroups(groups);
+    await setUserData(KEY_GROUPS, groups);
+  }
+
   async getQueue()             { return this.#local.getQueue(); }
   async saveQueue(items)       { return this.#local.saveQueue(items); }
 
@@ -103,6 +115,9 @@ export class HAUserDataStorageAdapter {
 
   /** @param {(playlists: object[]) => void} callback @returns {Promise<Function>} unsubscribe */
   subscribePlaylists(callback) { return subscribeUserData(KEY_PLAYLISTS, callback); }
+
+  /** @param {(groups: object[]) => void} callback @returns {Promise<Function>} unsubscribe */
+  subscribeGroups(callback) { return subscribeUserData(KEY_GROUPS, callback); }
 
   // ─── Extra ─────────────────────────────────────────────────────────────────
 

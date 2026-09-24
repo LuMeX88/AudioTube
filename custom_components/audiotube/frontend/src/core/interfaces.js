@@ -36,6 +36,10 @@
  * getAudioStreamUrl(videoId)         → Promise<string>
  *   Returns a direct audio-only stream URL for the given video ID.
  *   Implementation: the AudioTube Home Assistant integration's built-in API.
+ *
+ * getWaveform(videoId)                → Promise<number[]>
+ *   Returns real amplitude peak values (0..1) for the track's progress bar,
+ *   analyzed server-side from the cached audio file and cached itself.
  */
 
 // ─── StorageAdapter ───────────────────────────────────────────────────────────
@@ -47,6 +51,9 @@
  *
  * getPlaylists()                     → Promise<Playlist[]>
  * savePlaylists(playlists)           → Promise<void>
+ *
+ * getGroups()                        → Promise<SpeakerGroup[]>
+ * saveGroups(groups)                 → Promise<void>
  *
  * getQueue()                         → Promise<QueueItem[]>
  * saveQueue(items)                   → Promise<void>
@@ -61,10 +68,11 @@ const PLAYBACK_ADAPTER_METHODS = [
   'stop', 'next', 'previous', 'setVolume', 'onStateChange', 'destroy',
 ];
 
-const SEARCH_PROVIDER_METHODS = ['search', 'resolveUrl', 'getAudioStreamUrl'];
+const SEARCH_PROVIDER_METHODS = ['search', 'resolveUrl', 'getAudioStreamUrl', 'getWaveform'];
 
 const STORAGE_ADAPTER_METHODS = [
   'getFavorites', 'saveFavorites', 'getPlaylists', 'savePlaylists',
+  'getGroups', 'saveGroups',
   'getQueue', 'saveQueue', 'getSettings', 'saveSettings',
 ];
 

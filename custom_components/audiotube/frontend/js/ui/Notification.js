@@ -1,7 +1,7 @@
 /**
  * Toast notification renderer.
  */
-import { appState } from '../../src/core/state/AppState.js';
+import { appState } from '../../src/core/state/AppState.js?v=20260924-1';
 
 export function renderNotification(container) {
   appState.on('notification', (n) => {

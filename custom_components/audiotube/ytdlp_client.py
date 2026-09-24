@@ -5,8 +5,11 @@ separate proxy service is required.
 """
 from __future__ import annotations
 
+import array
 import asyncio
+import json
 import logging
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -193,3 +196,67 @@ async def async_ensure_audio_file(
             )
         finally:
             _download_locks.pop(video_id, None)
+
+
+def _waveform_cache_path(directory: Path, video_id: str) -> Path:
+    return directory / f"{video_id}.waveform.json"
+
+
+def _generate_waveform_sync(directory: Path, video_id: str, bars: int) -> list[float]:
+    """Decode the cached audio file with ffmpeg and bucket it into peak values.
+
+    Real amplitude analysis (not a fake/random pattern), cached as a small JSON
+    sidecar file so it's only computed once per track. Decodes to low-sample-rate
+    mono 16-bit PCM (ffmpeg is already a hard dependency via yt-dlp's own
+    FFmpegExtractAudio postprocessor, so no extra runtime dependency here) and
+    takes the peak absolute sample per bucket, normalized to 0..1.
+    """
+    cache_path = _waveform_cache_path(directory, video_id)
+    if cache_path.is_file():
+        try:
+            return json.loads(cache_path.read_text("utf-8"))
+        except (json.JSONDecodeError, OSError):
+            _LOGGER.debug("Waveform cache for %s was unreadable, regenerating", video_id)
+
+    audio_path = _find_audio_file(directory, video_id)
+    if not audio_path:
+        raise FileNotFoundError(f"Audio file for {video_id} is not cached yet")
+
+    sample_rate = 4000
+    proc = subprocess.run(
+        [
+            "ffmpeg", "-v", "error", "-i", str(audio_path),
+            "-ac", "1", "-ar", str(sample_rate), "-f", "s16le", "-",
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    samples = array.array("h")
+    usable_len = len(proc.stdout) - (len(proc.stdout) % samples.itemsize)
+    samples.frombytes(proc.stdout[:usable_len])
+
+    sample_count = len(samples)
+    peaks: list[float] = []
+    if sample_count == 0:
+        peaks = [0.0] * bars
+    else:
+        bucket_size = max(1, sample_count // bars)
+        for i in range(bars):
+            start = i * bucket_size
+            end = sample_count if i == bars - 1 else min(sample_count, start + bucket_size)
+            chunk = samples[start:end] or samples[start:start + 1]
+            peak = max(abs(s) for s in chunk) / 32768
+            peaks.append(round(peak, 4))
+
+    cache_path.write_text(json.dumps(peaks), encoding="utf-8")
+    return peaks
+
+
+async def async_ensure_waveform(
+    hass: HomeAssistant, directory: Path, video_id: str, bars: int = 100
+) -> list[float]:
+    """Return cached (or freshly generated) waveform peak data for a track."""
+    return await hass.async_add_executor_job(
+        _generate_waveform_sync, directory, video_id, bars
+    )

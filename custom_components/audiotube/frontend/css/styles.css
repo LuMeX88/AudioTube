@@ -65,6 +65,55 @@
   --clr-active-text: #64b5f6;
 }
 
+/* OLED — true black background (saves power / no grey glow on OLED screens),
+   red-pink accent for a bit more contrast/personality than plain dark mode. */
+:root[data-theme="oled"] {
+  --clr-bg:          #000000;
+  --clr-surface:     #0a0a0a;
+  --clr-surface-2:   #161616;
+  --clr-border:      #262626;
+  --clr-text:        #f2f2f2;
+  --clr-text-sub:    #8a8a8a;
+  --clr-accent:      #ff4d6d;
+  --clr-accent-dark: #e0395a;
+  --clr-accent-text: #000;
+  --clr-active:      #2a0d14;
+  --clr-active-text: #ff4d6d;
+  --clr-player-bg:   #000000;
+}
+
+/* Sepia — warm, paper-like light theme, easier on the eyes than stark white. */
+:root[data-theme="sepia"] {
+  --clr-bg:          #f4ecd8;
+  --clr-surface:     #ede2c8;
+  --clr-surface-2:   #e3d5b3;
+  --clr-border:      #cbb98e;
+  --clr-text:        #3b2f1e;
+  --clr-text-sub:    #6b5c40;
+  --clr-accent:      #8a5a2c;
+  --clr-accent-dark: #6f4722;
+  --clr-accent-text: #fff;
+  --clr-active:      #e6d3a8;
+  --clr-active-text: #8a5a2c;
+}
+
+/* High contrast — near-black/white with a strong yellow accent, for maximum
+   readability (WCAG AAA-friendly contrast ratios). */
+:root[data-theme="contrast"] {
+  --clr-bg:          #000000;
+  --clr-surface:     #000000;
+  --clr-surface-2:   #1a1a1a;
+  --clr-border:      #ffffff;
+  --clr-text:        #ffffff;
+  --clr-text-sub:    #f5e400;
+  --clr-accent:      #ffe600;
+  --clr-accent-dark: #d9c300;
+  --clr-accent-text: #000;
+  --clr-active:      #3a3300;
+  --clr-active-text: #ffe600;
+  --clr-player-bg:   #000000;
+}
+
 /* ─── Reset & base ───────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -431,23 +480,51 @@ input, button, select { outline-offset: 2px; }
   min-width: 0;
 }
 .time { font-size: .7rem; color: #aaa; white-space: nowrap; flex-shrink: 0; }
-.progress-bar {
+
+.progress-waveform-wrap {
+  position: relative;
   flex: 1;
   min-width: 0;
-  height: 4px;
-  appearance: none;
-  background: #444;
-  border-radius: 2px;
-  cursor: pointer;
+  height: 28px;
+  /* Colors for the waveform's played/unplayed bars — read via getComputedStyle
+     from PlayerBar.js, kept as custom properties so this stays themeable. */
+  --wf-played: var(--clr-accent);
+  --wf-unplayed: rgba(255,255,255,.25);
 }
+.progress-waveform {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* the range input on top handles all interaction */
+}
+.progress-bar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0; /* real progress is drawn by the waveform canvas underneath */
+}
+.progress-bar::-webkit-slider-runnable-track { background: transparent; }
 .progress-bar::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--clr-accent);
+  height: 100%;
+  background: transparent;
 }
-.progress-bar:disabled { opacity: .4; cursor: default; }
+.progress-bar::-moz-range-track { background: transparent; }
+.progress-bar::-moz-range-thumb {
+  width: 12px;
+  height: 100%;
+  background: transparent;
+  border: none;
+}
+.progress-bar:disabled { cursor: default; }
+.progress-waveform.is-inert { opacity: .4; }
 
 .volume-area {
   display: flex;
@@ -455,23 +532,123 @@ input, button, select { outline-offset: 2px; }
   gap: 6px;
   min-width: 0;
 }
-.volume-icon { font-size: .9rem; flex-shrink: 0; }
-.volume-slider {
-  flex: 1;
-  min-width: 0;
-  height: 4px;
-  appearance: none;
-  background: #444;
-  border-radius: 2px;
+.volume-control { position: relative; }
+.volume-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--clr-player-text);
+  transition: background .12s;
 }
+.volume-toggle:hover { background: rgba(255,255,255,.12); }
+.volume-toggle[aria-expanded="true"] { background: rgba(255,255,255,.18); }
+.volume-toggle[aria-disabled="true"] { opacity: .4; pointer-events: none; }
+
+.volume-popover {
+  position: fixed;
+  z-index: 200;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 12px;
+  /* Match the player bar's own (always-dark) surface, not the app's
+     light/dark theme surface — otherwise this looks like a foreign
+     light-colored widget glued on top of the dark bar. */
+  background: var(--clr-player-bg);
+  color: var(--clr-player-text);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: opacity .15s ease, transform .15s ease, visibility 0s linear .15s;
+}
+.volume-popover.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+.volume-step {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--clr-player-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s;
+}
+.volume-step:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+.volume-step:disabled { opacity: .35; cursor: default; }
+
+.volume-label { font-size: .72rem; color: rgba(255,255,255,.8); min-width: 24px; text-align: center; }
+
+.volume-track {
+  position: relative;
+  width: 6px;
+  height: 150px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.18);
+  overflow: hidden;
+}
+.volume-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 50%;
+  background: var(--clr-accent);
+  pointer-events: none;
+}
+.volume-slider {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -moz-orient: vertical;
+}
+.volume-slider::-webkit-slider-runnable-track { background: transparent; }
 .volume-slider::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 12px;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--clr-accent);
+  border: 2px solid var(--clr-player-bg);
+  box-shadow: var(--shadow-sm);
 }
-.volume-label { font-size: .7rem; color: #aaa; min-width: 24px; }
+.volume-slider::-moz-range-track { background: transparent; }
+.volume-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--clr-accent);
+  border: 2px solid var(--clr-player-bg);
+  box-shadow: var(--shadow-sm);
+}
+.volume-slider:disabled { cursor: default; opacity: .5; }
+
 
 /* ─── Queue view ─────────────────────────────────────────────────────────── */
 .queue-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
@@ -603,6 +780,19 @@ input, button, select { outline-offset: 2px; }
 .speaker-name { flex: 1; }
 .unavailable-badge, .selected-badge { font-size: .75rem; color: var(--clr-text-sub); }
 
+.group-list { list-style: none; display: flex; flex-direction: column; gap: 10px; max-height: 55vh; overflow-y: auto; margin-bottom: 10px; }
+.group-card {
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  background: var(--clr-surface);
+  padding: 10px 12px;
+}
+.group-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.group-name { font-weight: 600; font-size: .9rem; }
+.group-actions { display: flex; gap: 2px; }
+.group-members { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.group-member-item { display: flex; align-items: center; gap: 8px; font-size: .85rem; cursor: pointer; }
+
 /* ─── Notification toast ─────────────────────────────────────────────────── */
 .notification {
   position: fixed;
@@ -667,8 +857,7 @@ input, button, select { outline-offset: 2px; }
   }
   .now-playing { grid-column: 1; min-width: 0; }
   .transport   { grid-column: 2; }
-  .volume-area { grid-column: 3; min-width: 0; }
-  .volume-label { display: none; }
+  .volume-area { grid-column: 3; min-width: 0; justify-content: flex-end; }
   .progress-area {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -701,7 +890,8 @@ input, button, select { outline-offset: 2px; }
 .btn-transport .icon,
 .logo-icon .icon,
 .speaker-icon .icon,
-.volume-icon .icon { pointer-events: none; }
+.volume-toggle .icon,
+.volume-step .icon { pointer-events: none; }
 
 /* Icon buttons: larger hit area, clearer hover, focus ring */
 .btn-icon {
@@ -781,6 +971,7 @@ input, button, select { outline-offset: 2px; }
 /* Theme switch (Settings modal) — same look as the language switch */
 .theme-switch {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   padding: 2px;

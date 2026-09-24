@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
@@ -17,6 +18,8 @@ from .api import (
     AudioTubePrepareView,
     AudioTubeResolveView,
     AudioTubeSearchView,
+    AudioTubeVersionView,
+    AudioTubeWaveformView,
 )
 from .cache import async_schedule_purge
 
@@ -86,39 +89,59 @@ async def _async_register(hass: HomeAssistant) -> None:
     hass.http.register_view(AudioTubeResolveView())
     hass.http.register_view(AudioTubePrepareView())
     hass.http.register_view(AudioTubeAudioView())
+    hass.http.register_view(AudioTubeWaveformView())
+    hass.http.register_view(AudioTubeVersionView(Path(__file__).parent / "manifest.json"))
 
     async def async_play_media(call) -> None:
-        entity_id = call.data["entity_id"]
-        features = 0
-        if (state := hass.states.get(entity_id)) is not None:
-            features = state.attributes.get("supported_features") or 0
+        entity_ids = call.data["entity_id"]
+        if isinstance(entity_ids, str):
+            entity_ids = [entity_ids]
 
-        data = {
-            "entity_id": entity_id,
-            "media_content_id": call.data["media_url"],
-            "media_content_type": "music",
-        }
-        if features & SUPPORT_MEDIA_ENQUEUE:
-            # Queued playback carries track metadata; handing a speaker a bare
-            # URI makes the Sonos app show "unknown content". AudioTube keeps
-            # its own queue, so the speaker's queue is cleared first.
-            if features & SUPPORT_CLEAR_PLAYLIST:
+        # A group's members are addressed independently (see AppController's
+        # `group:<id>` targets): one incompatible/unavailable member must not
+        # abort playback on the rest, so each entity's failure is caught and
+        # logged instead of propagating.
+        errors: list[str] = []
+        for entity_id in entity_ids:
+            try:
+                features = 0
+                if (state := hass.states.get(entity_id)) is not None:
+                    features = state.attributes.get("supported_features") or 0
+
+                data = {
+                    "entity_id": entity_id,
+                    "media_content_id": call.data["media_url"],
+                    "media_content_type": "music",
+                }
+                if features & SUPPORT_MEDIA_ENQUEUE:
+                    # Queued playback carries track metadata; handing a speaker a bare
+                    # URI makes the Sonos app show "unknown content". AudioTube keeps
+                    # its own queue, so the speaker's queue is cleared first.
+                    if features & SUPPORT_CLEAR_PLAYLIST:
+                        await hass.services.async_call(
+                            "media_player", "clear_playlist", {"entity_id": entity_id},
+                            blocking=True,
+                        )
+                    data["enqueue"] = "play"
+
                 await hass.services.async_call(
-                    "media_player", "clear_playlist", {"entity_id": entity_id},
-                    blocking=True,
+                    "media_player", "play_media", data, blocking=True
                 )
-            data["enqueue"] = "play"
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("AudioTube play_media failed for %s: %s", entity_id, err)
+                errors.append(entity_id)
 
-        await hass.services.async_call(
-            "media_player", "play_media", data, blocking=True
-        )
+        if len(errors) == len(entity_ids):
+            raise HomeAssistantError(
+                f"Wiedergabe auf keinem der Lautsprecher möglich: {', '.join(errors)}"
+            )
 
     hass.services.async_register(
         DOMAIN,
         "play_media",
         async_play_media,
         schema=vol.Schema({
-            vol.Required("entity_id"): cv.entity_id,
+            vol.Required("entity_id"): cv.entity_ids,
             vol.Required("media_url"): cv.string,
             vol.Required("title"): cv.string,
             vol.Optional("artist", default=""): cv.string,

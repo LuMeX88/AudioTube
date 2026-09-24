@@ -33,6 +33,8 @@ export default {
   next: 'Nächster',
   previous: 'Vorheriger',
   volume: 'Lautstärke',
+  volumeIncrease: 'Lautstärke erhöhen',
+  volumeDecrease: 'Lautstärke verringern',
   shuffle: 'Zufallswiedergabe',
   repeat: 'Wiederholen',
   repeatNone: 'Kein Repeat',
@@ -50,6 +52,13 @@ export default {
   noSpeakers: 'Keine Lautsprecher gefunden.',
   speakerGroup: 'Gruppe',
   speakerRefresh: 'Aktualisieren',
+  manageGroups: 'Gruppen verwalten',
+  createGroup: 'Neue Gruppe',
+  groupName: 'Gruppenname',
+  renameGroup: 'Umbenennen',
+  deleteGroup: 'Löschen',
+  groupDeleteConfirm: (name) => `Gruppe „${name}" wirklich löschen?`,
+  noGroupsYet: 'Noch keine Gruppen erstellt. Ein Lautsprecher kann in mehreren Gruppen sein.',
 
   // Favorites
   favorites: 'Favoriten',
@@ -105,6 +114,9 @@ export default {
   themeLight: 'Hell',
   themeDark: 'Dunkel',
   themeSystem: 'System',
+  themeOled: 'OLED Schwarz',
+  themeSepia: 'Sepia',
+  themeContrast: 'Hoher Kontrast',
 
   // Backup (Favoriten/Playlists exportieren & importieren)
   backup: 'Sicherung',
@@ -119,6 +131,10 @@ export default {
   language: 'Sprache',
   langGerman: 'Deutsch',
   langEnglish: 'English',
+
+  // About
+  about: 'Über',
+  version: (v) => `Version ${v}`,
 
   // Misc
   loading: 'Laden…',

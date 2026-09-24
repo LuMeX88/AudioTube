@@ -9,7 +9,7 @@
  * @module adapters/local/LocalPlaybackAdapter
  */
 
-import { defaultPlaybackState } from '../../core/models.js';
+import { defaultPlaybackState } from '../../core/models.js?v=20260924-1';
 
 const MOCK_SPEAKERS = [
   { id: 'browser',       name: 'Browser (lokal)',    type: 'speaker', isAvailable: true,  volume: 50 },

@@ -27,6 +27,7 @@ const INITIAL_STATE = {
   // Favourites & playlists
   favorites: [],        // Track[]
   playlists: [],        // Playlist[]
+  groups: [],            // SpeakerGroup[] — user-defined groups of speakers, a speaker can be in several
 
   // UI state
   activeView: 'search', // 'search' | 'queue' | 'favorites' | 'playlists'

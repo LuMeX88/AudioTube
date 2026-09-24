@@ -64,6 +64,20 @@ export class InvidiousSearchProvider {
     return `${location.origin}/api/audiotube/audio/${encodeURIComponent(videoId)}.mp3`;
   }
 
+  /**
+   * Real (server-analyzed, not fake/random) amplitude peaks for the track's
+   * waveform progress bar, 0..1 per bar.
+   * @param {string} videoId
+   * @returns {Promise<number[]>}
+   */
+  async getWaveform(videoId) {
+    const { peaks } = await this.#fetchJson(
+      `/api/audiotube/waveform/${encodeURIComponent(videoId)}`,
+      PREPARE_TIMEOUT_MS,
+    );
+    return peaks;
+  }
+
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   async #fetchJson(url, timeoutMs = DEFAULT_TIMEOUT_MS, retried = false) {

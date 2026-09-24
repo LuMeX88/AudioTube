@@ -4,11 +4,12 @@ play_media:
   fields:
     entity_id:
       name: Entity
-      description: Target media player entity.
+      description: Target media player entity (or entities, for a speaker group).
       required: true
       selector:
         entity:
           domain: media_player
+          multiple: true
     media_url:
       name: Media URL
       description: LAN-reachable MP3 URL resolved and served by AudioTube.

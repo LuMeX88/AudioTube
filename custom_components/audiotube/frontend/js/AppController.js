@@ -4,16 +4,16 @@
  * @module apps/local/js/AppController
  */
 
-import { appState } from '../src/core/state/AppState.js';
-import { createQueueItem, createPlaylist, trackFromSearchResult } from '../src/core/models.js';
-import { t } from '../src/core/i18n/i18n.js?v=20260923-2';
+import { appState } from '../src/core/state/AppState.js?v=20260924-1';
+import { createQueueItem, createPlaylist, createGroup as createSpeakerGroup, trackFromSearchResult } from '../src/core/models.js?v=20260924-1';
+import { t } from '../src/core/i18n/i18n.js?v=20260924-2';
 import { log } from '../src/core/log.js';
 import { stringify as toYaml, parse as fromYaml } from '../src/core/yaml.js?v=20260923-1';
 
-const THEMES = ['light', 'dark', 'system'];
+const THEMES = ['light', 'dark', 'system', 'oled', 'sepia', 'contrast'];
 
 function applyTheme(theme) {
-  if (theme === 'light' || theme === 'dark') {
+  if (theme && theme !== 'system') {
     document.documentElement.setAttribute('data-theme', theme);
   } else {
     document.documentElement.removeAttribute('data-theme');
@@ -30,6 +30,7 @@ export class AppController {
   #playback;    // PlaybackAdapter
   #search;      // SearchClient
   #storage;     // StorageAdapter
+  #navigating = false; // guards next()/previous() against overlapping calls (fast double-clicks, auto-advance)
 
   constructor({ playbackAdapter, searchClient, storageAdapter }) {
     this.#playback = playbackAdapter;
@@ -41,14 +42,15 @@ export class AppController {
 
   async init() {
     // Load persisted data
-    const [favorites, playlists, queue, settings] = await Promise.all([
+    const [favorites, playlists, groups, queue, settings] = await Promise.all([
       this.#storage.getFavorites(),
       this.#storage.getPlaylists(),
+      this.#storage.getGroups(),
       this.#storage.getQueue(),
       this.#storage.getSettings(),
     ]);
 
-    appState.set({ favorites, playlists, queue });
+    appState.set({ favorites, playlists, groups, queue });
     applyTheme(settings?.theme);
 
     // Apply settings to search client
@@ -61,6 +63,7 @@ export class AppController {
     // into the same account, without needing to leave and reopen this panel.
     this.#storage.subscribeFavorites?.(favs => appState.set({ favorites: favs }));
     this.#storage.subscribePlaylists?.(pls  => appState.set({ playlists: pls }));
+    this.#storage.subscribeGroups?.(groups  => appState.set({ groups }));
 
     // Do not block the whole app on HA/Sonos discovery. The UI remains usable
     // while the iframe websocket authenticates or reports an error.
@@ -74,13 +77,13 @@ export class AppController {
       appState.set({ speakers: [] });
     }
 
-    // Restore the previously used target, falling back to the first available one.
-    const speakers = appState.get('speakers');
-    const target = speakers.find(s => s.id === settings?.selectedSpeakerId && s.isAvailable)
-      ?? speakers.find(s => s.isAvailable);
+    // Restore the previously used target (a plain speaker or a `group:<id>`
+    // saved target), falling back to the first available speaker.
+    const targets = this.getSelectableTargets();
+    const target = targets.find(s => s.id === settings?.selectedSpeakerId && s.isAvailable)
+      ?? targets.find(s => s.type === 'speaker' && s.isAvailable);
     if (target) {
-      await this.#playback.selectSpeaker(target.id);
-      appState.set({ selectedSpeakerId: target.id });
+      await this.selectSpeaker(target.id);
     }
 
     // Listen to playback state from adapter
@@ -167,26 +170,38 @@ export class AppController {
   }
 
   async next() {
-    if (!appState.hasNext) {
-      await this.#playback.stop();
-      return;
+    if (this.#navigating) return;
+    this.#navigating = true;
+    try {
+      if (!appState.hasNext) {
+        await this.#playback.stop();
+        return;
+      }
+      const newIdx = appState.get('queueIndex') + 1;
+      appState.set({ queueIndex: newIdx });
+      await this.#playTrack(appState.get('queue')[newIdx].track);
+    } finally {
+      this.#navigating = false;
     }
-    const newIdx = appState.get('queueIndex') + 1;
-    appState.set({ queueIndex: newIdx });
-    await this.#playTrack(appState.get('queue')[newIdx].track);
   }
 
   async previous() {
-    const pos = appState.get('playback').positionSec;
-    if (pos > 3) {
-      // Restart current track if we're past 3 seconds
-      await this.#playTrack(appState.currentQueueItem?.track);
-      return;
+    if (this.#navigating) return;
+    this.#navigating = true;
+    try {
+      const pos = appState.get('playback').positionSec;
+      if (pos > 3) {
+        // Restart current track if we're past 3 seconds
+        await this.#playTrack(appState.currentQueueItem?.track);
+        return;
+      }
+      if (!appState.hasPrev) return;
+      const newIdx = appState.get('queueIndex') - 1;
+      appState.set({ queueIndex: newIdx });
+      await this.#playTrack(appState.get('queue')[newIdx].track);
+    } finally {
+      this.#navigating = false;
     }
-    if (!appState.hasPrev) return;
-    const newIdx = appState.get('queueIndex') - 1;
-    appState.set({ queueIndex: newIdx });
-    await this.#playTrack(appState.get('queue')[newIdx].track);
   }
 
   async pause()  { await this.#playback.pause(); }
@@ -195,13 +210,19 @@ export class AppController {
 
   async setVolume(level) { await this.#playback.setVolume(level); }
 
+  /** Real analyzed amplitude peaks (0..1) for a track's waveform progress bar. */
+  async getWaveform(videoId) {
+    return this.#search.getWaveform(videoId);
+  }
+
   async seek(positionSec) {
     if (this.#playback.seek) await this.#playback.seek(positionSec);
   }
 
   async selectSpeaker(id) {
     try {
-      await this.#playback.selectSpeaker(id);
+      const memberIds = this.#resolveGroupMemberIds(id);
+      await this.#playback.selectSpeaker(id, memberIds);
       appState.set({ selectedSpeakerId: id });
       const settings = await this.#storage.getSettings();
       await this.#storage.saveSettings({ ...settings, selectedSpeakerId: id });
@@ -213,6 +234,76 @@ export class AppController {
   async refreshSpeakers() {
     const speakers = await this.#playback.getSpeakers();
     appState.set({ speakers });
+  }
+
+  /**
+   * Speakers plus user-defined groups, combined into one list for the
+   * speaker-picker UI (groups shown as `group:<id>` synthetic targets).
+   * @returns {Array} Speaker[] with type 'speaker' or 'group'
+   */
+  getSelectableTargets() {
+    const speakers = appState.get('speakers');
+    const groups = appState.get('groups');
+    const groupEntries = groups.map(g => {
+      const members = speakers.filter(s => g.speakerIds.includes(s.id));
+      return {
+        id: `group:${g.id}`,
+        name: g.name,
+        type: 'group',
+        isAvailable: members.some(m => m.isAvailable),
+        volume: members[0]?.volume ?? 50,
+      };
+    });
+    return [...speakers, ...groupEntries];
+  }
+
+  /** @returns {string[]|null} member entity ids if `id` is a `group:<id>` target, else null. */
+  #resolveGroupMemberIds(id) {
+    if (!id?.startsWith('group:')) return null;
+    const groupId = id.slice('group:'.length);
+    const group = appState.get('groups').find(g => g.id === groupId);
+    if (!group) throw new Error('Gruppe nicht gefunden.');
+    const speakers = appState.get('speakers');
+    const memberIds = group.speakerIds.filter(sid => speakers.some(s => s.id === sid && s.isAvailable));
+    if (!memberIds.length) throw new Error(`Kein verfügbarer Lautsprecher in Gruppe „${group.name}".`);
+    return memberIds;
+  }
+
+  // ─── Speaker groups ───────────────────────────────────────────────────────
+
+  createGroup(name, speakerIds = []) {
+    const group = createSpeakerGroup(name.trim(), speakerIds);
+    const updated = [...appState.get('groups'), group];
+    appState.set({ groups: updated });
+    this.#storage.saveGroups(updated);
+    return group;
+  }
+
+  renameGroup(id, newName) {
+    const updated = appState.get('groups').map(g =>
+      g.id === id ? { ...g, name: newName.trim(), updatedAt: Date.now() } : g
+    );
+    appState.set({ groups: updated });
+    this.#storage.saveGroups(updated);
+  }
+
+  deleteGroup(id) {
+    const updated = appState.get('groups').filter(g => g.id !== id);
+    appState.set({ groups: updated });
+    this.#storage.saveGroups(updated);
+    // If the deleted group was the active playback target, fall back to nothing selected.
+    if (appState.get('selectedSpeakerId') === `group:${id}`) {
+      appState.set({ selectedSpeakerId: null });
+    }
+  }
+
+  /** Replace a group's member speaker ids (a speaker may be in several groups). */
+  setGroupMembers(id, speakerIds) {
+    const updated = appState.get('groups').map(g =>
+      g.id === id ? { ...g, speakerIds: [...speakerIds], updatedAt: Date.now() } : g
+    );
+    appState.set({ groups: updated });
+    this.#storage.saveGroups(updated);
   }
 
   // ─── Queue management ─────────────────────────────────────────────────────

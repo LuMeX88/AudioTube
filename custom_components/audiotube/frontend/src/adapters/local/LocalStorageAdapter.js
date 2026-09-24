@@ -37,6 +37,9 @@ export class LocalStorageAdapter {
   async getPlaylists()            { return load('playlists', []); }
   async savePlaylists(playlists)  { save('playlists', playlists); }
 
+  async getGroups()               { return load('groups', []); }
+  async saveGroups(groups)        { save('groups', groups); }
+
   async getQueue()                { return load('queue', []); }
   async saveQueue(items)          { save('queue', items); }
 

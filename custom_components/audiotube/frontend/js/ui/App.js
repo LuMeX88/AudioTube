@@ -2,15 +2,15 @@
  * App shell renderer — mounts all views and wires up navigation.
  * @module apps/local/js/ui/App
  */
-import { appState }    from '../../src/core/state/AppState.js';
-import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260923-2';
-import { icon }        from './icons.js?v=20260923-2';
-import { showConfirm } from './dialogs.js?v=20260923-2';
-import { renderSearch }   from './SearchView.js?v=20260923-2';
-import { renderQueue }    from './QueueView.js?v=20260923-2';
-import { renderFavorites} from './FavoritesView.js?v=20260923-2';
-import { renderPlaylists} from './PlaylistsView.js?v=20260923-2';
-import { renderPlayerBar} from './PlayerBar.js?v=20260923-2';
+import { appState }    from '../../src/core/state/AppState.js?v=20260924-1';
+import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260924-2';
+import { icon }        from './icons.js?v=20260924-1';
+import { showConfirm, showPrompt } from './dialogs.js?v=20260924-1';
+import { renderSearch }   from './SearchView.js?v=20260924-1';
+import { renderQueue }    from './QueueView.js?v=20260924-1';
+import { renderFavorites} from './FavoritesView.js?v=20260924-1';
+import { renderPlaylists} from './PlaylistsView.js?v=20260924-1';
+import { renderPlayerBar} from './PlayerBar.js?v=20260924-5';
 import { renderNotification } from './Notification.js';
 
 export function renderApp(ctrl) {
@@ -118,12 +118,11 @@ export function renderApp(ctrl) {
 
   // Speaker name in header
   const renderSpeakerName = () => {
-    const id       = appState.get('selectedSpeakerId');
-    const speakers = appState.get('speakers');
-    const sp       = speakers.find(s => s.id === id);
+    const id = appState.get('selectedSpeakerId');
+    const sp = ctrl.getSelectableTargets().find(s => s.id === id);
     document.getElementById('speakerName').textContent = sp?.name || '–';
   };
-  appState.on(['selectedSpeakerId', 'speakers'], renderSpeakerName);
+  appState.on(['selectedSpeakerId', 'speakers', 'groups'], renderSpeakerName);
   // The speaker is restored during init(), before this view subscribes.
   renderSpeakerName();
 
@@ -132,22 +131,23 @@ export function renderApp(ctrl) {
 }
 
 function openSpeakerModal(modal, ctrl) {
-  const speakers = appState.get('speakers');
+  const targets  = ctrl.getSelectableTargets();
   const selected = appState.get('selectedSpeakerId');
 
   modal.innerHTML = `
     <div class="modal-box">
       <h2 class="modal-title">${t('selectSpeaker')}</h2>
       <ul class="speaker-list">
-        ${speakers.length
-          ? speakers.map(sp => `
+        ${targets.length
+          ? targets.map(sp => `
             <li>
               <button class="speaker-item ${!sp.isAvailable ? 'unavailable' : ''} ${sp.id === selected ? 'selected' : ''}"
                       data-id="${sp.id}"
                       ${!sp.isAvailable ? 'disabled' : ''}
                       aria-pressed="${sp.id === selected}">
-                <span class="speaker-type-icon">${icon(sp.type === 'group' ? 'speaker' : 'speaker', 18)}</span>
+                <span class="speaker-type-icon">${icon(sp.type === 'group' ? 'queue' : 'speaker', 18)}</span>
                 <span class="speaker-name">${sp.name}</span>
+                ${sp.type === 'group' ? `<span class="unavailable-badge">${t('speakerGroup')}</span>` : ''}
                 ${!sp.isAvailable ? `<span class="unavailable-badge">${t('errorSpeaker')}</span>` : ''}
                 ${sp.id === selected ? `<span class="selected-badge">${icon('check', 16)}</span>` : ''}
               </button>
@@ -156,6 +156,7 @@ function openSpeakerModal(modal, ctrl) {
         }
       </ul>
       <div class="modal-actions">
+        <button class="btn-secondary" id="manageGroups">${t('manageGroups')}</button>
         <button class="btn-secondary" id="refreshSpeakers">${t('speakerRefresh')}</button>
         <button class="btn-secondary" id="closeSpeakerModal">${t('close')}</button>
       </div>
@@ -176,9 +177,101 @@ function openSpeakerModal(modal, ctrl) {
     openSpeakerModal(modal, ctrl); // re-render
   });
 
+  modal.querySelector('#manageGroups').addEventListener('click', () => {
+    openGroupsModal(modal, ctrl);
+  });
+
   modal.querySelector('#closeSpeakerModal').addEventListener('click', () => {
     modal.classList.add('hidden');
   });
+}
+
+function openGroupsModal(modal, ctrl) {
+  const groups   = appState.get('groups');
+  const speakers = appState.get('speakers');
+
+  modal.innerHTML = `
+    <div class="modal-box">
+      <h2 class="modal-title">${t('manageGroups')}</h2>
+      <ul class="group-list">
+        ${groups.length
+          ? groups.map(g => `
+            <li class="group-card" data-id="${g.id}">
+              <div class="group-card-header">
+                <span class="group-name">${escHtml(g.name)}</span>
+                <div class="group-actions">
+                  <button class="btn-icon group-rename" title="${t('renameGroup')}" aria-label="${t('renameGroup')}">${icon('edit', 16)}</button>
+                  <button class="btn-icon group-delete" title="${t('deleteGroup')}" aria-label="${t('deleteGroup')}">${icon('trash', 16)}</button>
+                </div>
+              </div>
+              <ul class="group-members">
+                ${speakers.length
+                  ? speakers.map(sp => `
+                    <li>
+                      <label class="group-member-item">
+                        <input type="checkbox" data-speaker="${sp.id}" ${g.speakerIds.includes(sp.id) ? 'checked' : ''}>
+                        <span>${escHtml(sp.name)}</span>
+                      </label>
+                    </li>`).join('')
+                  : `<li class="empty-msg small">${t('noSpeakers')}</li>`
+                }
+              </ul>
+            </li>`).join('')
+          : `<li class="empty-msg small">${t('noGroupsYet')}</li>`
+        }
+      </ul>
+      <button class="picker-new" id="createGroup">${icon('add', 18)} ${t('createGroup')}</button>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="backToSpeakers">${t('close')}</button>
+      </div>
+    </div>
+  `;
+
+  modal.querySelectorAll('.group-member-item input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const card = cb.closest('.group-card');
+      const groupId = card.dataset.id;
+      const speakerIds = [...card.querySelectorAll('input[type=checkbox]:checked')].map(el => el.dataset.speaker);
+      ctrl.setGroupMembers(groupId, speakerIds);
+    });
+  });
+
+  modal.querySelectorAll('.group-rename').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.group-card');
+      const group = groups.find(g => g.id === card.dataset.id);
+      const name = await showPrompt(t('groupName'), group?.name || '');
+      if (!name) return;
+      ctrl.renameGroup(card.dataset.id, name);
+      openGroupsModal(modal, ctrl);
+    });
+  });
+
+  modal.querySelectorAll('.group-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.group-card');
+      const group = groups.find(g => g.id === card.dataset.id);
+      const ok = await showConfirm(t('groupDeleteConfirm', group?.name || ''));
+      if (!ok) return;
+      ctrl.deleteGroup(card.dataset.id);
+      openGroupsModal(modal, ctrl);
+    });
+  });
+
+  modal.querySelector('#createGroup').addEventListener('click', async () => {
+    const name = await showPrompt(t('groupName'));
+    if (!name) return;
+    ctrl.createGroup(name);
+    openGroupsModal(modal, ctrl);
+  });
+
+  modal.querySelector('#backToSpeakers').addEventListener('click', () => {
+    openSpeakerModal(modal, ctrl);
+  });
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 async function openSettingsModal(modal, ctrl) {
@@ -202,7 +295,7 @@ async function openSettingsModal(modal, ctrl) {
       <section class="settings-section">
         <h3 class="settings-section-title">${t('theme')}</h3>
         <div class="theme-switch" role="group" aria-label="${t('theme')}">
-          ${['light', 'dark', 'system'].map(th => `
+          ${['light', 'dark', 'system', 'oled', 'sepia', 'contrast'].map(th => `
             <button class="theme-btn ${th === theme ? 'active' : ''}" data-theme="${th}"
                     aria-pressed="${th === theme}">${t(`theme${th.charAt(0).toUpperCase()}${th.slice(1)}`)}</button>`).join('')}
         </div>
@@ -218,6 +311,11 @@ async function openSettingsModal(modal, ctrl) {
         </div>
       </section>
 
+      <section class="settings-section">
+        <h3 class="settings-section-title">${t('about')}</h3>
+        <p class="settings-hint" id="aboutVersion">${t('version', '…')}</p>
+      </section>
+
       <div class="modal-actions">
         <button class="btn-secondary" id="closeSettingsModal">${t('close')}</button>
       </div>
@@ -225,6 +323,20 @@ async function openSettingsModal(modal, ctrl) {
   `;
 
   modal.classList.remove('hidden');
+
+  // Version is served by a small public endpoint (reads manifest.json), so it
+  // never needs to be hand-kept in sync with GitHub release tags here.
+  fetch('/api/audiotube/version').then(r => r.json()).then(({ version, repository }) => {
+    const el = modal.querySelector('#aboutVersion');
+    if (!el) return;
+    const label = t('version', version);
+    el.innerHTML = repository
+      ? `<a href="${repository}/releases/tag/v${version}" target="_blank" rel="noopener noreferrer">${label}</a>`
+      : label;
+  }).catch(() => {
+    const el = modal.querySelector('#aboutVersion');
+    if (el) el.textContent = t('version', '?');
+  });
 
   modal.querySelectorAll('.lang-btn').forEach(btn => {
     btn.addEventListener('click', () => {

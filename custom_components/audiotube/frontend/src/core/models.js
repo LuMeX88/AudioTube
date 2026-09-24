@@ -98,6 +98,20 @@ export function createPlaylist(name) {
   return { id: generateId(), name, tracks: [], createdAt: now, updatedAt: now };
 }
 
+/**
+ * @typedef {Object} SpeakerGroup
+ * @property {string}   id          - Local UUID (referenced as playback target `group:<id>`)
+ * @property {string}   name
+ * @property {string[]} speakerIds  - Member media_player entity ids. A speaker may belong to
+ *                                    several groups at once (unlike native Sonos zone groups).
+ * @property {number}   createdAt
+ * @property {number}   updatedAt
+ */
+export function createGroup(name, speakerIds = []) {
+  const now = Date.now();
+  return { id: generateId(), name, speakerIds: [...speakerIds], createdAt: now, updatedAt: now };
+}
+
 export function defaultPlaybackState() {
   return {
     status: 'idle',

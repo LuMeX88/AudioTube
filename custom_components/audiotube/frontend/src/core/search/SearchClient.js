@@ -60,6 +60,10 @@ export class SearchClient {
     return this.#provider.getAudioStreamUrl(videoId);
   }
 
+  async getWaveform(videoId) {
+    return this.#provider.getWaveform(videoId);
+  }
+
   // ─── AI query rewriting ────────────────────────────────────────────────────
   // Improves YouTube search quality by normalising artist/track names.
   // Configure the AI endpoint in Settings → AI settings.

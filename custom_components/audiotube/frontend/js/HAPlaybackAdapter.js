@@ -3,7 +3,7 @@
  * It reads media_player states and sends playback commands through the HA
  * websocket API using the existing frontend session.
  */
-import { defaultPlaybackState } from '../src/core/models.js';
+import { defaultPlaybackState } from '../src/core/models.js?v=20260924-1';
 import { getAccessToken } from './haAuth.js?v=20260923-1';
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/websocket`;
@@ -13,6 +13,7 @@ export class HAPlaybackAdapter {
   #nextId = 1;
   #pending = new Map();
   #selectedSpeakerId = null;
+  #targetIds = []; // entity ids actually addressed by service calls — [selectedSpeakerId], or all group members
   #stateCallbacks = new Set();
   #state = defaultPlaybackState();
   #streamUrlResolver;
@@ -23,6 +24,16 @@ export class HAPlaybackAdapter {
   #volumeTarget = null;
   #volumeGuardUntil = 0;
   #authRetried = false;
+  #manualPause = false;
+  // While true (a few seconds after we ourselves told the speaker to switch
+  // tracks), transient 'idle'/'paused' readings are NOT treated as "track
+  // ended" — the speaker briefly reports idle while stopping the previous
+  // URI before it starts the new one, and without this guard that blip was
+  // being misread as a second natural end-of-track, cascading into several
+  // tracks being skipped from one next()/previous() press.
+  #suppressEndedUntil = 0;
+  #stallPositionSec = null;
+  #stallSince = 0;
 
   constructor(streamUrlResolver) {
     this.#streamUrlResolver = streamUrlResolver;
@@ -106,8 +117,13 @@ export class HAPlaybackAdapter {
 
   async getSpeakers() {
     const states = await this.#apiRequest('/api/states');
+    const PLAY_MEDIA = 4; // MediaPlayerEntityFeature.PLAY_MEDIA
     return states
       .filter(state => state.entity_id.startsWith('media_player.'))
+      // Entities without PLAY_MEDIA support (e.g. some demo/TV media_players)
+      // reject AudioTube's play_media call outright — hide them so they can't
+      // be picked as a target or a group member in the first place.
+      .filter(state => ((state.attributes.supported_features ?? 0) & PLAY_MEDIA) !== 0)
       .map(state => ({
         id: state.entity_id,
         name: state.attributes.friendly_name || state.entity_id,
@@ -117,24 +133,42 @@ export class HAPlaybackAdapter {
       }));
   }
 
-  async selectSpeaker(id) {
-    const speakers = await this.getSpeakers();
-    if (!speakers.some(speaker => speaker.id === id)) throw new Error(`Lautsprecher "${id}" nicht gefunden.`);
+  /**
+   * @param {string} id          - the (possibly synthetic `group:<id>`) target id, kept for display/lookup
+   * @param {string[]|null} memberIds - real media_player entity ids to actually address; a plain single
+   *   speaker passes null (defaults to `[id]`), a group passes all its available member entity ids so every
+   *   service call below fans out to all of them (HA's entity services natively accept an entity_id array).
+   */
+  async selectSpeaker(id, memberIds = null) {
+    if (!memberIds) {
+      const speakers = await this.getSpeakers();
+      const speaker = speakers.find(item => item.id === id);
+      if (!speaker) throw new Error(`Lautsprecher "${id}" nicht gefunden.`);
+      this.#patchState({ volume: speaker.volume });
+      this.#targetIds = [id];
+    } else {
+      if (!memberIds.length) throw new Error(`Gruppe "${id}" hat keine verfügbaren Lautsprecher.`);
+      this.#targetIds = memberIds;
+    }
     this.#selectedSpeakerId = id;
-    const speaker = speakers.find(item => item.id === id);
-    this.#patchState({ volume: speaker.volume });
     this.#startPolling();
   }
 
   async play(track) {
-    if (!this.#selectedSpeakerId) throw new Error('Kein Lautsprecher ausgewählt.');
+    if (!this.#targetIds.length) throw new Error('Kein Lautsprecher ausgewählt.');
     this.#lastRemoteStatus = 'playing';
+    this.#manualPause = false;
+    // Grace period covering the speaker's stop-old/start-new transition, so
+    // the transient idle/paused reading during that switch isn't mistaken
+    // for the new track having already ended too.
+    this.#suppressEndedUntil = Date.now() + 6000;
+    this.#stallPositionSec = null;
     this.#patchState({ status: 'loading', currentTrack: track });
     const streamUrl = await this.#streamUrlResolver(track.id);
     await this.#apiRequest('/api/services/audiotube/play_media', {
       method: 'POST',
       body: JSON.stringify({
-        entity_id: this.#selectedSpeakerId,
+        entity_id: this.#targetIds,
         media_url: streamUrl,
         title: track.title,
         artist: track.artist,
@@ -144,11 +178,17 @@ export class HAPlaybackAdapter {
     this.#startPolling();
   }
 
-  async pause() { await this.#callService('media_pause'); this.#patchState({ status: 'paused' }); }
-  async resume() { await this.#callService('media_play'); this.#patchState({ status: 'playing' }); }
+  async pause() { this.#manualPause = true; await this.#callService('media_pause'); this.#patchState({ status: 'paused' }); }
+  async resume() {
+    this.#manualPause = false;
+    this.#suppressEndedUntil = Date.now() + 3000;
+    await this.#callService('media_play');
+    this.#patchState({ status: 'playing' });
+  }
   async stop() {
     await this.#callService('media_stop');
     this.#lastRemoteStatus = 'idle';
+    this.#manualPause = false;
     this.#patchState(defaultPlaybackState());
   }
   async next() { await this.#callService('media_next_track'); }
@@ -175,10 +215,10 @@ export class HAPlaybackAdapter {
   }
 
   async #callService(service, serviceData = {}) {
-    if (!this.#selectedSpeakerId) return;
+    if (!this.#targetIds.length) return;
     await this.#apiRequest(`/api/services/media_player/${service}`, {
       method: 'POST',
-      body: JSON.stringify({ entity_id: this.#selectedSpeakerId, ...serviceData }),
+      body: JSON.stringify({ entity_id: this.#targetIds, ...serviceData }),
     });
   }
 
@@ -223,10 +263,14 @@ export class HAPlaybackAdapter {
   }
 
   async #pollState() {
-    if (!this.#selectedSpeakerId) return;
+    // For a group, the first member is read as the representative state (position/
+    // duration/volume/status) — Sonos-style true multi-speaker sync isn't attempted,
+    // each member just independently receives the same play/pause/volume commands.
+    const primaryId = this.#targetIds[0];
+    if (!primaryId) return;
     try {
       const states = await this.#apiRequest('/api/states');
-      const remote = states.find(state => state.entity_id === this.#selectedSpeakerId);
+      const remote = states.find(state => state.entity_id === primaryId);
       if (!remote) return;
 
       const attributes = remote.attributes || {};
@@ -271,7 +315,29 @@ export class HAPlaybackAdapter {
         volume,
       });
 
-      if (this.#lastRemoteStatus === 'playing' && remoteStatus === 'idle') {
+      // Detect "track actually finished" from up to three independent signals,
+      // since different Sonos/media_player integrations report the end of a
+      // manually-issued play_media URI differently (some go 'idle', some sit
+      // in 'paused' at the last position, some just stop advancing position
+      // while still claiming 'playing'):
+      const pastSuppressWindow = Date.now() > this.#suppressEndedUntil;
+      const nearEnd = durationSec > 0 && positionSec >= durationSec - 2;
+      const wentIdle = remoteStatus === 'idle';
+      const pausedAtEnd = remoteStatus === 'paused' && !this.#manualPause && nearEnd;
+
+      let stalled = false;
+      if (remoteStatus === 'playing' && nearEnd) {
+        if (this.#stallPositionSec !== null && Math.abs(positionSec - this.#stallPositionSec) < 0.5) {
+          if (Date.now() - this.#stallSince > 3000) stalled = true;
+        } else {
+          this.#stallPositionSec = positionSec;
+          this.#stallSince = Date.now();
+        }
+      } else {
+        this.#stallPositionSec = null;
+      }
+
+      if (this.#lastRemoteStatus === 'playing' && pastSuppressWindow && (wentIdle || pausedAtEnd || stalled)) {
         this.#emit({ ...this.#state, _event: 'ended' });
       }
       this.#lastRemoteStatus = remoteStatus;

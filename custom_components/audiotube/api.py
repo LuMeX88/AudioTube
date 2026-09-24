@@ -1,6 +1,7 @@
 """HTTP views for AudioTube's built-in search, resolve, and audio endpoints."""
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -11,7 +12,12 @@ from homeassistant.components.http import KEY_HASS, HomeAssistantView
 from homeassistant.core import HomeAssistant
 
 from .cache import cache_dir
-from .ytdlp_client import async_ensure_audio_file, async_resolve, async_search
+from .ytdlp_client import (
+    async_ensure_audio_file,
+    async_ensure_waveform,
+    async_resolve,
+    async_search,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +56,37 @@ class AudioTubeIndexView(HomeAssistantView):
         hass: HomeAssistant = request.app[KEY_HASS]
         text = await hass.async_add_executor_job(self._index_path.read_text, "utf-8")
         return web.Response(text=text, content_type="text/html", headers={"Cache-Control": "no-cache"})
+
+
+class AudioTubeVersionView(HomeAssistantView):
+    """Exposes the installed version and GitHub repo URL from manifest.json.
+
+    Lets the Settings screen show a version number that matches GitHub
+    release tags (e.g. 0.4.0 -> https://github.com/.../releases/tag/v0.4.0)
+    without duplicating/hardcoding it in the frontend.
+    """
+
+    url = "/api/audiotube/version"
+    name = "api:audiotube:version"
+    requires_auth = False
+
+    def __init__(self, manifest_path: Path) -> None:
+        """Store the on-disk path of manifest.json."""
+        self._manifest_path = manifest_path
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Return {version, repository} parsed from manifest.json."""
+        hass: HomeAssistant = request.app[KEY_HASS]
+        try:
+            text = await hass.async_add_executor_job(self._manifest_path.read_text, "utf-8")
+            manifest = json.loads(text)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("AudioTube failed to read manifest.json for version info")
+            return self.json({"version": "unknown", "repository": ""}, status_code=500)
+        return self.json({
+            "version": manifest.get("version", "unknown"),
+            "repository": manifest.get("documentation", ""),
+        })
 
 
 class AudioTubeSearchView(HomeAssistantView):
@@ -114,6 +151,31 @@ class AudioTubePrepareView(HomeAssistantView):
                 {"error": f"Audio konnte nicht geladen werden: {err}"}, status_code=502
             )
         return self.json({"ready": True})
+
+
+class AudioTubeWaveformView(HomeAssistantView):
+    """Returns real amplitude-analyzed waveform peak data (0..1 per bar) for a track."""
+
+    url = "/api/audiotube/waveform/{video_id}"
+    name = "api:audiotube:waveform"
+
+    async def get(self, request: web.Request, video_id: str) -> web.Response:
+        """Ensure the audio is cached, then return (or generate) its waveform peaks."""
+        hass: HomeAssistant = request.app[KEY_HASS]
+        video_id = video_id.removesuffix(".mp3")
+        if not VIDEO_ID_RE.match(video_id):
+            return self.json({"error": "Ungültige videoId."}, status_code=400)
+
+        try:
+            directory = cache_dir(hass)
+            await async_ensure_audio_file(hass, directory, video_id)
+            peaks = await async_ensure_waveform(hass, directory, video_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.exception("AudioTube waveform generation failed for video_id=%r", video_id)
+            return self.json(
+                {"error": f"Waveform konnte nicht erzeugt werden: {err}"}, status_code=502
+            )
+        return self.json({"peaks": peaks})
 
 
 class AudioTubeAudioView(HomeAssistantView):
