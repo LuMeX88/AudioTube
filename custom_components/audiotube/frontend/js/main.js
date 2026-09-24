@@ -8,12 +8,12 @@ import { LocalStorageAdapter }      from '../src/adapters/local/LocalStorageAdap
 import { HAUserDataStorageAdapter } from './HAUserDataStorageAdapter.js?v=20260924-1';
 import { LocalPlaybackAdapter }     from '../src/adapters/local/LocalPlaybackAdapter.js';
 import { HAPlaybackAdapter }        from './HAPlaybackAdapter.js?v=20260924-3';
-import { InvidiousSearchProvider }  from '../src/core/search/InvidiousSearchProvider.js?v=20260924-2';
-import { SearchClient }             from '../src/core/search/SearchClient.js?v=20260924-1';
-import { AppController }            from './AppController.js?v=20260924-3';
+import { InvidiousSearchProvider }  from '../src/core/search/InvidiousSearchProvider.js?v=20260924-3';
+import { SearchClient }             from '../src/core/search/SearchClient.js?v=20260924-2';
+import { AppController }            from './AppController.js?v=20260924-4';
 import { appState }                 from '../src/core/state/AppState.js?v=20260924-1';
-import { t }                        from '../src/core/i18n/i18n.js?v=20260924-2';
-import { renderApp }                from './ui/App.js?v=20260924-6';
+import { t }                        from '../src/core/i18n/i18n.js?v=20260924-3';
+import { renderApp }                from './ui/App.js?v=20260924-7';
 
 async function bootstrap() {
   const inHomeAssistant = location.pathname.startsWith('/audiotube/');

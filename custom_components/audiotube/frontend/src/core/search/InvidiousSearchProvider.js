@@ -80,18 +80,45 @@ export class InvidiousSearchProvider {
     return peaks ?? null;
   }
 
+  /**
+   * Asks the integration to download the given tracks in the background, so
+   * the next queue entries are already cached before they're played.
+   * Fire-and-forget: resolves as soon as the downloads are queued.
+   * @param {string[]} videoIds
+   */
+  async prefetch(videoIds) {
+    if (!videoIds.length) return;
+    await this.#fetchJson('/api/audiotube/prefetch', DEFAULT_TIMEOUT_MS, false, {
+      method: 'POST',
+      body: JSON.stringify({ video_ids: videoIds }),
+    });
+  }
+
+  /**
+   * Marks these tracks as exempt from the cache's TTL purge (every track
+   * currently saved in a playlist), so their MP3s stay on disk.
+   * @param {string[]} videoIds
+   */
+  async setPinnedTracks(videoIds) {
+    await this.#fetchJson('/api/audiotube/pinned', DEFAULT_TIMEOUT_MS, false, {
+      method: 'POST',
+      body: JSON.stringify({ video_ids: videoIds }),
+    });
+  }
+
   // ─── Private helpers ──────────────────────────────────────────────────────
 
-  async #fetchJson(url, timeoutMs = DEFAULT_TIMEOUT_MS, retried = false) {
+  async #fetchJson(url, timeoutMs = DEFAULT_TIMEOUT_MS, retried = false, options = {}) {
     const accessToken = await getAccessToken();
     log.debug('request', { url, hasToken: Boolean(accessToken) });
     const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+    if (options.body) headers['Content-Type'] = 'application/json';
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res;
     try {
-      res = await fetch(url, { headers, signal: controller.signal });
+      res = await fetch(url, { ...options, headers, signal: controller.signal });
     } catch (err) {
       log.error('fetch threw before a response was received', { url, error: err.message });
       throw err;
@@ -103,7 +130,7 @@ export class InvidiousSearchProvider {
       // The token can be stale for a moment after a refresh; force a fresh one and retry once.
       if (!retried) {
         await getAccessToken({ force: true });
-        return this.#fetchJson(url, timeoutMs, true);
+        return this.#fetchJson(url, timeoutMs, true, options);
       }
       log.error('unauthorized', { url, hasToken: Boolean(accessToken) });
       throw new Error('Home Assistant-Anmeldung abgelaufen. Bitte Home Assistant neu laden.');

@@ -11,7 +11,7 @@ from aiohttp import web
 from homeassistant.components.http import KEY_HASS, HomeAssistantView
 from homeassistant.core import HomeAssistant
 
-from .cache import cache_dir
+from .cache import async_set_pinned, cache_dir
 from .ytdlp_client import (
     async_ensure_audio_file,
     async_ensure_waveform,
@@ -152,6 +152,51 @@ class AudioTubePrepareView(HomeAssistantView):
                 {"error": f"Audio konnte nicht geladen werden: {err}"}, status_code=502
             )
         return self.json({"ready": True})
+
+
+class AudioTubePrefetchView(HomeAssistantView):
+    """Kicks off background downloads for upcoming queue tracks.
+
+    Returns immediately: the downloads run as background tasks so the next
+    track is already cached by the time it's played, without the caller ever
+    waiting on yt-dlp.
+    """
+
+    url = "/api/audiotube/prefetch"
+    name = "api:audiotube:prefetch"
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Queue background downloads for the given video ids."""
+        hass: HomeAssistant = request.app[KEY_HASS]
+        body = await request.json()
+        video_ids = [v for v in body.get("video_ids", []) if VIDEO_ID_RE.match(str(v))]
+        directory = cache_dir(hass)
+
+        async def _download(video_id: str) -> None:
+            try:
+                await async_ensure_audio_file(hass, directory, video_id)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("AudioTube prefetch failed for %s: %s", video_id, err)
+
+        for video_id in video_ids:
+            hass.async_create_task(_download(video_id))
+
+        return self.json({"queued": len(video_ids)})
+
+
+class AudioTubePinnedView(HomeAssistantView):
+    """Stores which video ids are exempt from the cache TTL purge."""
+
+    url = "/api/audiotube/pinned"
+    name = "api:audiotube:pinned"
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Replace the pinned set (every track currently saved in a playlist)."""
+        hass: HomeAssistant = request.app[KEY_HASS]
+        body = await request.json()
+        video_ids = [str(v) for v in body.get("video_ids", []) if VIDEO_ID_RE.match(str(v))]
+        await async_set_pinned(hass, video_ids)
+        return self.json({"pinned": len(video_ids)})
 
 
 class AudioTubeWaveformView(HomeAssistantView):

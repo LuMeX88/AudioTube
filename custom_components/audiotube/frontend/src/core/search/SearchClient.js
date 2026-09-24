@@ -64,6 +64,14 @@ export class SearchClient {
     return this.#provider.getWaveform(videoId);
   }
 
+  async prefetch(videoIds) {
+    return this.#provider.prefetch?.(videoIds);
+  }
+
+  async setPinnedTracks(videoIds) {
+    return this.#provider.setPinnedTracks?.(videoIds);
+  }
+
   // ─── AI query rewriting ────────────────────────────────────────────────────
   // Improves YouTube search quality by normalising artist/track names.
   // Configure the AI endpoint in Settings → AI settings.

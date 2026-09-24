@@ -15,6 +15,8 @@ from homeassistant.helpers.typing import ConfigType
 from .api import (
     AudioTubeAudioView,
     AudioTubeIndexView,
+    AudioTubePinnedView,
+    AudioTubePrefetchView,
     AudioTubePrepareView,
     AudioTubeResolveView,
     AudioTubeSearchView,
@@ -88,6 +90,8 @@ async def _async_register(hass: HomeAssistant) -> None:
     hass.http.register_view(AudioTubeSearchView())
     hass.http.register_view(AudioTubeResolveView())
     hass.http.register_view(AudioTubePrepareView())
+    hass.http.register_view(AudioTubePrefetchView())
+    hass.http.register_view(AudioTubePinnedView())
     hass.http.register_view(AudioTubeAudioView())
     hass.http.register_view(AudioTubeWaveformView())
     hass.http.register_view(AudioTubeVersionView(Path(__file__).parent / "manifest.json"))

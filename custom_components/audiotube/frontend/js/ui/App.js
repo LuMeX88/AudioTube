@@ -3,18 +3,23 @@
  * @module apps/local/js/ui/App
  */
 import { appState }    from '../../src/core/state/AppState.js?v=20260924-1';
-import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260924-2';
+import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260924-3';
 import { icon }        from './icons.js?v=20260924-1';
 import { showConfirm, showPrompt } from './dialogs.js?v=20260924-1';
 import { renderSearch }   from './SearchView.js?v=20260924-1';
 import { renderQueue }    from './QueueView.js?v=20260924-1';
 import { renderFavorites} from './FavoritesView.js?v=20260924-1';
 import { renderPlaylists} from './PlaylistsView.js?v=20260924-1';
-import { renderPlayerBar} from './PlayerBar.js?v=20260924-6';
+import { renderPlayerBar} from './PlayerBar.js?v=20260924-7';
 import { renderNotification } from './Notification.js';
 
 export function renderApp(ctrl) {
   const root = document.getElementById('app');
+  // Re-runs on every language switch; drop the previous run's document-level
+  // listeners so they don't stack up against a detached DOM.
+  root._audiotubeCleanup?.();
+  const appTeardown = new AbortController();
+  root._audiotubeCleanup = () => appTeardown.abort();
   root.innerHTML = `
     <div class="app-layout">
       <header class="app-header">
@@ -91,7 +96,7 @@ export function renderApp(ctrl) {
     if (!appNav.classList.contains('open')) return;
     if (appNav.contains(e.target) || navToggle.contains(e.target)) return;
     closeNavMenu();
-  });
+  }, { signal: appTeardown.signal });
 
   // Language switch — re-render the whole app in the new locale
   const offLocale = onLocaleChange(() => {

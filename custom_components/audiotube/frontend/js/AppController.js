@@ -6,7 +6,7 @@
 
 import { appState } from '../src/core/state/AppState.js?v=20260924-1';
 import { createQueueItem, createPlaylist, createGroup as createSpeakerGroup, trackFromSearchResult } from '../src/core/models.js?v=20260924-1';
-import { t } from '../src/core/i18n/i18n.js?v=20260924-2';
+import { t } from '../src/core/i18n/i18n.js?v=20260924-3';
 import { log } from '../src/core/log.js';
 import { stringify as toYaml, parse as fromYaml } from '../src/core/yaml.js?v=20260923-1';
 
@@ -94,6 +94,27 @@ export class AppController {
 
     // Auto-save queue on changes
     appState.on('queue', q => this.#storage.saveQueue(q));
+
+    // Keep every queued track downloaded ahead of time, and every playlist
+    // track exempt from the cache TTL, without blocking anything.
+    appState.on('queue', () => this.#prefetchQueue());
+    appState.on('playlists', () => this.#syncPinnedTracks());
+    this.#prefetchQueue();
+    this.#syncPinnedTracks();
+  }
+
+  /** Downloads upcoming queue tracks in the background so playback starts instantly. */
+  #prefetchQueue() {
+    const ids = appState.get('queue').map(item => item.track?.id).filter(Boolean);
+    if (ids.length) this.#search.prefetch?.(ids)?.catch(err => log.debug('prefetch failed:', err.message));
+  }
+
+  /** Tells the backend which tracks must survive the cache TTL purge (playlist tracks). */
+  #syncPinnedTracks() {
+    const ids = [...new Set(
+      appState.get('playlists').flatMap(pl => pl.tracks.map(tr => tr.id)).filter(Boolean)
+    )];
+    this.#search.setPinnedTracks?.(ids)?.catch(err => log.debug('pin sync failed:', err.message));
   }
 
   // ─── Search ───────────────────────────────────────────────────────────────

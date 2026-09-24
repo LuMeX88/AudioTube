@@ -40,6 +40,13 @@
  * getWaveform(videoId)                → Promise<number[]>
  *   Returns real amplitude peak values (0..1) for the track's progress bar,
  *   analyzed server-side from the cached audio file and cached itself.
+ *
+ * prefetch(videoIds)                  → Promise<void>
+ *   Asks the backend to download these tracks in the background, so upcoming
+ *   queue entries are already cached before they're played.
+ *
+ * setPinnedTracks(videoIds)           → Promise<void>
+ *   Marks these tracks as exempt from the cache TTL purge (playlist tracks).
  */
 
 // ─── StorageAdapter ───────────────────────────────────────────────────────────

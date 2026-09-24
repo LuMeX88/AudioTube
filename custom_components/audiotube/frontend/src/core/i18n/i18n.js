@@ -4,8 +4,8 @@
  *        t('searchPlaceholder')
  *        t('trackCount', 12)   // calls string function if value is a fn
  */
-import de from './de.js?v=20260924-2';
-import en from './en.js?v=20260924-2';
+import de from './de.js?v=20260924-3';
+import en from './en.js?v=20260924-3';
 
 const LOCALES = { de, en };
 const STORAGE_KEY = 'tap.locale';
@@ -37,7 +37,10 @@ export function setLocale(locale) {
   _locale = locale;
   _strings = LOCALES[locale];
   try { localStorage.setItem(STORAGE_KEY, locale); } catch { /* ignore */ }
-  _listeners.forEach(fn => fn(locale));
+  // Snapshot first: a listener re-renders the app, which subscribes a NEW
+  // listener, and `Set.forEach` would visit that one too — recursing until
+  // the stack overflows and the page dies.
+  [..._listeners].forEach(fn => fn(locale));
 }
 
 /** Subscribe to locale changes. Returns an unsubscribe function. */

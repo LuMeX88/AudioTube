@@ -9,12 +9,31 @@ from pathlib import Path
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.storage import Store
 
 _LOGGER = logging.getLogger(__name__)
 
 CACHE_DIR_NAME = "audiotube_cache"
 FILE_TTL = timedelta(days=21)
 PURGE_INTERVAL = timedelta(hours=6)
+
+PINNED_STORE_KEY = "audiotube.pinned"
+PINNED_STORE_VERSION = 1
+
+
+def _pinned_store(hass: HomeAssistant) -> Store:
+    return Store(hass, PINNED_STORE_VERSION, PINNED_STORE_KEY)
+
+
+async def async_get_pinned(hass: HomeAssistant) -> set[str]:
+    """Return video ids that must never be purged (tracks saved in playlists)."""
+    data = await _pinned_store(hass).async_load()
+    return set((data or {}).get("video_ids", []))
+
+
+async def async_set_pinned(hass: HomeAssistant, video_ids: list[str]) -> None:
+    """Replace the pinned set, so playlist tracks survive the TTL purge."""
+    await _pinned_store(hass).async_save({"video_ids": sorted(set(video_ids))})
 
 
 def cache_dir(hass: HomeAssistant) -> Path:
@@ -36,15 +55,21 @@ def cache_dir(hass: HomeAssistant) -> Path:
     return Path(hass.config.path("media", CACHE_DIR_NAME))
 
 
-def _purge_expired_sync(path: Path) -> None:
+def _purge_expired_sync(path: Path, pinned: set[str]) -> None:
     if not path.is_dir():
         return
     cutoff = time.time() - FILE_TTL.total_seconds()
     for file in path.glob("*"):
         try:
-            if file.is_file() and file.stat().st_mtime < cutoff:
-                file.unlink()
-                _LOGGER.debug("Purged expired cached audio file %s", file.name)
+            if not file.is_file() or file.stat().st_mtime >= cutoff:
+                continue
+            # Files are named "Title [video_id].ext" (and waveforms
+            # "video_id.waveform.json"), so a pinned id can be matched from
+            # the filename alone without any lookup.
+            if any(f"[{video_id}]" in file.stem or file.name.startswith(f"{video_id}.") for video_id in pinned):
+                continue
+            file.unlink()
+            _LOGGER.debug("Purged expired cached audio file %s", file.name)
         except OSError as err:
             _LOGGER.warning("Failed to purge cached file %s: %s", file, err)
 
@@ -73,9 +98,10 @@ def _migrate_old_cache_sync(hass: HomeAssistant) -> None:
 
 
 async def async_purge_expired(hass: HomeAssistant) -> None:
-    """Remove cached audio files older than the 21-day TTL."""
+    """Remove cached audio files older than the TTL, except pinned ones."""
     await hass.async_add_executor_job(_migrate_old_cache_sync, hass)
-    await hass.async_add_executor_job(_purge_expired_sync, cache_dir(hass))
+    pinned = await async_get_pinned(hass)
+    await hass.async_add_executor_job(_purge_expired_sync, cache_dir(hass), pinned)
 
 
 @callback

@@ -57,9 +57,12 @@ Speakers fetch audio directly from there — no extra host or port to open up.
 
 - **🔍 Search** – Find tracks and playlists on YouTube, or paste a URL directly.
 - **📃 Queue** – Build a queue, reorder it by drag & drop, and it **auto-advances**
-  track to track.
+  track to track. Everything in the queue is **downloaded ahead of time** in the
+  background, so the next track starts instantly instead of waiting on a download.
 - **❤️ Favorites & 📁 Playlists** – Save tracks, build playlists, and everything
   **syncs live across every device** logged into the same Home Assistant account.
+  Tracks saved in a playlist are **kept on disk permanently** — they're exempt
+  from the cache cleanup, so your playlists always start instantly.
 - **🔊 Speaker groups** – Combine several `media_player` entities into a group
   (a speaker can belong to more than one group) and pick the group as a single
   playback target — every member gets the same play/pause/volume commands.
@@ -106,7 +109,12 @@ Home Assistant host, then serves them from Home Assistant's own web server.
 Speakers such as Sonos fetch the audio from the same host and port Home
 Assistant is already reachable on — no separate proxy host or port to open up.
 
-Cached audio files (and their analyzed waveform data) are automatically deleted after **21 days**.
+Tracks in your **queue are prefetched** in the background as soon as they're
+queued, so playback starts without waiting on a download.
+
+Cached audio files (and their analyzed waveform data) are automatically deleted
+after **21 days** — except tracks that are saved in a **playlist**, which are
+pinned and kept indefinitely.
 
 ---
 

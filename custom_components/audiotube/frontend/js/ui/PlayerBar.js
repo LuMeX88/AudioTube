@@ -2,11 +2,24 @@
  * Fixed bottom player bar — Now Playing, transport controls, volume.
  */
 import { appState } from '../../src/core/state/AppState.js?v=20260924-1';
-import { t }        from '../../src/core/i18n/i18n.js?v=20260924-2';
+import { t }        from '../../src/core/i18n/i18n.js?v=20260924-3';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js?v=20260924-1';
 
 export function renderPlayerBar(container, ctrl) {
+  // This runs again on every language switch (renderApp re-renders everything).
+  // Without tearing the previous run's document/window listeners and state
+  // subscription down first, each switch stacks another live copy that keeps
+  // writing into the now-detached old DOM.
+  container._audiotubeCleanup?.();
+  const teardown = new AbortController();
+  const { signal } = teardown;
+  const subscriptions = [];
+  container._audiotubeCleanup = () => {
+    teardown.abort();
+    subscriptions.forEach(off => off());
+  };
+
   container.innerHTML = `
     <div class="player-bar-inner">
       <!-- Now Playing -->
@@ -112,7 +125,7 @@ export function renderPlayerBar(container, ctrl) {
     if (!isScrubbing) return;
     isScrubbing = false;
     seekToProgress();
-  });
+  }, { signal });
   progressBar.addEventListener('change', seekToProgress);
 
   // Waveform: real per-track amplitude peaks (analyzed server-side from the
@@ -196,7 +209,7 @@ export function renderPlayerBar(container, ctrl) {
     drawWaveform(Number(progressBar.value) / 100);
   }
 
-  window.addEventListener('resize', () => { resizeWaveformCanvas(); drawWaveform(); });
+  window.addEventListener('resize', () => { resizeWaveformCanvas(); drawWaveform(); }, { signal });
   resizeWaveformCanvas();
 
   function progressPositionSec() {
@@ -259,11 +272,11 @@ export function renderPlayerBar(container, ctrl) {
     if (!volumePopover.classList.contains('open')) return;
     if (e.target === volumeToggle || volumePopover.contains(e.target)) return;
     closeVolumePopover();
-  });
+  }, { signal });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeVolumePopover();
-  });
+  }, { signal });
 
   volumeSlider.addEventListener('input', () => {
     const v = applyVolume(parseInt(volumeSlider.value, 10));
@@ -287,7 +300,7 @@ export function renderPlayerBar(container, ctrl) {
   });
 
   // State subscription
-  appState.on('playback', (ps) => {
+  subscriptions.push(appState.on('playback', (ps) => {
     const track = ps.currentTrack;
 
     // Track info
@@ -344,7 +357,7 @@ export function renderPlayerBar(container, ctrl) {
       el.disabled = disabled;
     });
     if (disabled) closeVolumePopover();
-  });
+  }));
 }
 
 function escHtml(str) {
