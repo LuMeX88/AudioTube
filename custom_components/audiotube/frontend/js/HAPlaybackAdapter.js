@@ -34,6 +34,14 @@ export class HAPlaybackAdapter {
   #suppressEndedUntil = 0;
   #stallPositionSec = null;
   #stallSince = 0;
+  // Client-side wall-clock fallback for "track ended", independent of
+  // whatever the remote entity does or doesn't report for media_position/
+  // media_duration on a raw (non-queue) play_media URI — some integrations
+  // never update those attributes at all for such a call, which would
+  // otherwise make idle/paused/stalled detection above never fire.
+  #trackDurationSec = 0;   // from the track's own (YouTube) metadata, not the entity
+  #playStartedAt = null;   // Date.now() timestamp of the current playing segment's start, or null while paused/loading
+  #accumulatedPlayedSec = 0; // seconds already played across previous segments (before a pause/seek)
 
   constructor(streamUrlResolver) {
     this.#streamUrlResolver = streamUrlResolver;
@@ -163,6 +171,12 @@ export class HAPlaybackAdapter {
     // for the new track having already ended too.
     this.#suppressEndedUntil = Date.now() + 6000;
     this.#stallPositionSec = null;
+    // Reset the wall-clock timer immediately (not just after play_media
+    // succeeds) so a leftover previous track's elapsed time can't spuriously
+    // fire "ended" again while this new one is still loading.
+    this.#trackDurationSec = track.durationSec || 0;
+    this.#accumulatedPlayedSec = 0;
+    this.#playStartedAt = null;
     this.#patchState({ status: 'loading', currentTrack: track });
     const streamUrl = await this.#streamUrlResolver(track.id);
     await this.#apiRequest('/api/services/audiotube/play_media', {
@@ -174,14 +188,24 @@ export class HAPlaybackAdapter {
         artist: track.artist,
       }),
     });
+    this.#playStartedAt = Date.now();
     this.#patchState({ status: 'playing' });
     this.#startPolling();
   }
 
-  async pause() { this.#manualPause = true; await this.#callService('media_pause'); this.#patchState({ status: 'paused' }); }
+  async pause() {
+    this.#manualPause = true;
+    if (this.#playStartedAt) {
+      this.#accumulatedPlayedSec += (Date.now() - this.#playStartedAt) / 1000;
+      this.#playStartedAt = null;
+    }
+    await this.#callService('media_pause');
+    this.#patchState({ status: 'paused' });
+  }
   async resume() {
     this.#manualPause = false;
     this.#suppressEndedUntil = Date.now() + 3000;
+    this.#playStartedAt = Date.now();
     await this.#callService('media_play');
     this.#patchState({ status: 'playing' });
   }
@@ -189,6 +213,9 @@ export class HAPlaybackAdapter {
     await this.#callService('media_stop');
     this.#lastRemoteStatus = 'idle';
     this.#manualPause = false;
+    this.#trackDurationSec = 0;
+    this.#accumulatedPlayedSec = 0;
+    this.#playStartedAt = null;
     this.#patchState(defaultPlaybackState());
   }
   async next() { await this.#callService('media_next_track'); }
@@ -211,6 +238,9 @@ export class HAPlaybackAdapter {
     // until it catches up, otherwise the progress bar snaps back.
     this.#seekTarget = target;
     this.#seekGuardUntil = Date.now() + 5000;
+    // Re-anchor the wall-clock ended-fallback timer to the new position too.
+    this.#accumulatedPlayedSec = target;
+    if (this.#playStartedAt) this.#playStartedAt = Date.now();
     this.#patchState({ positionSec: target });
   }
 
@@ -275,11 +305,20 @@ export class HAPlaybackAdapter {
 
       const attributes = remote.attributes || {};
       const remoteStatus = remote.state;
-      const durationSec = Number(attributes.media_duration || this.#state.currentTrack?.durationSec || 0);
+      let durationSec = Number(attributes.media_duration || this.#state.currentTrack?.durationSec || 0);
       let positionSec = Number(attributes.media_position || 0);
       const updatedAt = Date.parse(attributes.media_position_updated_at || '');
       if (remoteStatus === 'playing' && Number.isFinite(updatedAt)) {
         positionSec += Math.max(0, (Date.now() - updatedAt) / 1000);
+      }
+
+      // Some media_player integrations never populate media_position/
+      // media_duration at all for a raw (non-queue) play_media URI. When
+      // that's the case, fall back to our own wall-clock estimate so the
+      // progress bar still shows something instead of staying at 0:00.
+      if (!attributes.media_position && !durationSec && this.#trackDurationSec > 0) {
+        durationSec = this.#trackDurationSec;
+        positionSec = this.#estimatedElapsedSec();
       }
 
       if (this.#seekTarget !== null) {
@@ -337,13 +376,26 @@ export class HAPlaybackAdapter {
         this.#stallPositionSec = null;
       }
 
-      if (this.#lastRemoteStatus === 'playing' && pastSuppressWindow && (wentIdle || pausedAtEnd || stalled)) {
+      // Wall-clock fallback: fires purely from our own timer against the
+      // track's own (YouTube) metadata duration, entirely independent of
+      // whatever the remote entity reports — the only signal guaranteed to
+      // eventually fire even if the entity never changes state at all.
+      const timerElapsed = this.#trackDurationSec > 0
+        && this.#estimatedElapsedSec() >= this.#trackDurationSec + 2;
+
+      if (this.#lastRemoteStatus === 'playing' && pastSuppressWindow && (wentIdle || pausedAtEnd || stalled || timerElapsed)) {
         this.#emit({ ...this.#state, _event: 'ended' });
       }
       this.#lastRemoteStatus = remoteStatus;
     } catch (error) {
       console.warn('[HAPlaybackAdapter] State polling failed:', error.message);
     }
+  }
+
+  /** Wall-clock estimate of playback position, independent of the remote entity. */
+  #estimatedElapsedSec() {
+    return this.#accumulatedPlayedSec
+      + (this.#playStartedAt ? (Date.now() - this.#playStartedAt) / 1000 : 0);
   }
 
   /**

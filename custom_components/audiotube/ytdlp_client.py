@@ -198,6 +198,20 @@ async def async_ensure_audio_file(
             _download_locks.pop(video_id, None)
 
 
+async def async_get_cached_audio_file(
+    hass: HomeAssistant, directory: Path, video_id: str
+) -> Path | None:
+    """Return the audio file only if it's already cached, without downloading.
+
+    Used by the waveform endpoint so it never competes with (or piggybacks a
+    second concurrent yt-dlp invocation onto) the actual playback-critical
+    download kicked off by /api/audiotube/prepare — waveform generation is a
+    nice-to-have and must never add latency to "the track actually starts
+    playing".
+    """
+    return await hass.async_add_executor_job(_find_audio_file, directory, video_id)
+
+
 def _waveform_cache_path(directory: Path, video_id: str) -> Path:
     return directory / f"{video_id}.waveform.json"
 

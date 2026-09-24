@@ -10,7 +10,7 @@ import { renderSearch }   from './SearchView.js?v=20260924-1';
 import { renderQueue }    from './QueueView.js?v=20260924-1';
 import { renderFavorites} from './FavoritesView.js?v=20260924-1';
 import { renderPlaylists} from './PlaylistsView.js?v=20260924-1';
-import { renderPlayerBar} from './PlayerBar.js?v=20260924-5';
+import { renderPlayerBar} from './PlayerBar.js?v=20260924-6';
 import { renderNotification } from './Notification.js';
 
 export function renderApp(ctrl) {

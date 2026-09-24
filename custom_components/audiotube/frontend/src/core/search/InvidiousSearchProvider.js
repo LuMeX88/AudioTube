@@ -66,16 +66,18 @@ export class InvidiousSearchProvider {
 
   /**
    * Real (server-analyzed, not fake/random) amplitude peaks for the track's
-   * waveform progress bar, 0..1 per bar.
+   * waveform progress bar, 0..1 per bar. Returns null while the audio itself
+   * is still being downloaded for playback (202 "pending") — the caller
+   * should retry shortly instead of treating that as a hard failure.
    * @param {string} videoId
-   * @returns {Promise<number[]>}
+   * @returns {Promise<number[]|null>}
    */
   async getWaveform(videoId) {
     const { peaks } = await this.#fetchJson(
       `/api/audiotube/waveform/${encodeURIComponent(videoId)}`,
-      PREPARE_TIMEOUT_MS,
+      DEFAULT_TIMEOUT_MS,
     );
-    return peaks;
+    return peaks ?? null;
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────

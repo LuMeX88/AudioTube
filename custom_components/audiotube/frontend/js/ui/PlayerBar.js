@@ -135,17 +135,30 @@ export function renderPlayerBar(container, ctrl) {
       drawWaveform();
       return;
     }
+    await fetchWaveformWithRetry(videoId);
+  }
+
+  /**
+   * The waveform endpoint returns `null` (peaks) while the audio itself is
+   * still downloading for playback — retry a few times with a short delay
+   * instead of giving up, without ever blocking/delaying playback itself
+   * (this whole function is fire-and-forget from the caller's perspective).
+   */
+  async function fetchWaveformWithRetry(videoId, attempt = 0) {
     try {
       const peaks = await ctrl.getWaveform(videoId);
-      waveformCache.set(videoId, peaks);
       // The track may have changed again while this request was in flight.
-      if (currentWaveformTrackId === videoId) {
+      if (currentWaveformTrackId !== videoId) return;
+      if (peaks) {
+        waveformCache.set(videoId, peaks);
         currentPeaks = peaks;
         drawWaveform();
+      } else if (attempt < 8) {
+        setTimeout(() => fetchWaveformWithRetry(videoId, attempt + 1), 2000);
       }
     } catch {
       // No real data available (e.g. offline) — falls back to the plain
-      // range-input track drawn by drawWaveform() below.
+      // placeholder pattern drawn by drawWaveform() below.
     }
   }
 

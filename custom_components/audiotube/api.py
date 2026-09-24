@@ -15,6 +15,7 @@ from .cache import cache_dir
 from .ytdlp_client import (
     async_ensure_audio_file,
     async_ensure_waveform,
+    async_get_cached_audio_file,
     async_resolve,
     async_search,
 )
@@ -160,15 +161,25 @@ class AudioTubeWaveformView(HomeAssistantView):
     name = "api:audiotube:waveform"
 
     async def get(self, request: web.Request, video_id: str) -> web.Response:
-        """Ensure the audio is cached, then return (or generate) its waveform peaks."""
+        """Return waveform peaks if the audio is already cached, else 202 (pending).
+
+        Deliberately does NOT trigger a download itself: it must never compete
+        with (or effectively double) the playback-critical download already
+        kicked off by /api/audiotube/prepare for the same video_id — that
+        would add latency to "the track actually starts playing" for a
+        purely cosmetic feature.
+        """
         hass: HomeAssistant = request.app[KEY_HASS]
         video_id = video_id.removesuffix(".mp3")
         if not VIDEO_ID_RE.match(video_id):
             return self.json({"error": "Ungültige videoId."}, status_code=400)
 
+        directory = cache_dir(hass)
+        audio_path = await async_get_cached_audio_file(hass, directory, video_id)
+        if not audio_path:
+            return self.json({"peaks": None, "pending": True}, status_code=202)
+
         try:
-            directory = cache_dir(hass)
-            await async_ensure_audio_file(hass, directory, video_id)
             peaks = await async_ensure_waveform(hass, directory, video_id)
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("AudioTube waveform generation failed for video_id=%r", video_id)
