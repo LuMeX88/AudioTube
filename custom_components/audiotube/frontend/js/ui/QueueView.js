@@ -2,10 +2,10 @@
  * Queue view — shows the current playback queue with remove/skip actions.
  */
 import { appState } from '../../src/core/state/AppState.js?v=20260924-1';
-import { t }        from '../../src/core/i18n/i18n.js?v=20260924-3';
+import { t }        from '../../src/core/i18n/i18n.js?v=20260925-1';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js?v=20260924-1';
-import { showConfirm } from './dialogs.js?v=20260923-2';
+import { showConfirm } from './dialogs.js?v=20260925-1';
 import { enableDragReorder } from './dragReorder.js';
 
 export function renderQueue(container, ctrl) {

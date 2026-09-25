@@ -1,7 +1,7 @@
 /**
  * Storage adapter used when AudioTube is embedded in HA.
  *
- * Favorites and playlists are stored via Home Assistant's own per-user
+ * Favorites and private playlists are stored via Home Assistant's own per-user
  * "frontend user data" websocket API (`frontend/get_user_data` /
  * `frontend/set_user_data`) instead of localStorage. That store is keyed by
  * the logged-in HA user (not by browser/device), so it automatically syncs
@@ -9,13 +9,13 @@
  * signed in with the same HA account — unlike localStorage, which never
  * leaves the device it was written on.
  *
- * Everything else (queue, settings, history) stays in localStorage via the
- * wrapped LocalStorageAdapter: those are legitimately per-device (e.g. you
- * don't want your desktop's selected speaker to override your phone's).
+ * The queue and shared playlists live in AudioTube's integration-owned HA
+ * storage, so every HA user sees the same state and backend playback survives
+ * after all browser/app clients disconnect. Settings and history stay local.
  *
  * @module js/HAUserDataStorageAdapter
  */
-import { getConnection } from './haAuth.js?v=20260923-1';
+import { getAccessToken, getConnection } from './haAuth.js?v=20260923-1';
 import { LocalStorageAdapter } from '../src/adapters/local/LocalStorageAdapter.js?v=20260924-1';
 
 const KEY_FAVORITES = 'audiotube_favorites';
@@ -42,6 +42,21 @@ async function setUserData(key, value) {
   }
 }
 
+async function apiJson(path, options = {}) {
+  const accessToken = await getAccessToken();
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+  return body;
+}
+
 /**
  * Subscribes to live push updates for a user-data key via HA's
  * `frontend/subscribe_user_data` websocket command, so changes saved from
@@ -63,8 +78,9 @@ async function subscribeUserData(key, callback) {
 }
 
 export class HAUserDataStorageAdapter {
-  // Per-device data (queue/settings/history) still goes through localStorage.
+  // Per-device fallback and settings/history storage.
   #local = new LocalStorageAdapter();
+  #lastSharedState = null;
 
   // ─── StorageAdapter interface ─────────────────────────────────────────────
 
@@ -81,14 +97,27 @@ export class HAUserDataStorageAdapter {
   }
 
   async getPlaylists() {
-    const playlists = await getUserData(KEY_PLAYLISTS, await this.#local.getPlaylists());
+    const privatePlaylists = await getUserData(KEY_PLAYLISTS, await this.#local.getPlaylists());
+    const { playlists: sharedPlaylists = [] } = await apiJson('/api/audiotube/shared-playlists');
+    const playlists = [
+      ...privatePlaylists.map(playlist => ({ ...playlist, visibility: 'private' })),
+      ...sharedPlaylists.map(playlist => ({ ...playlist, visibility: 'shared' })),
+    ];
     this.#local.savePlaylists(playlists);
     return playlists;
   }
 
   async savePlaylists(playlists) {
     this.#local.savePlaylists(playlists);
-    await setUserData(KEY_PLAYLISTS, playlists);
+    const privatePlaylists = playlists.filter(playlist => playlist.visibility !== 'shared');
+    const sharedPlaylists = playlists.filter(playlist => playlist.visibility === 'shared');
+    await Promise.all([
+      setUserData(KEY_PLAYLISTS, privatePlaylists),
+      apiJson('/api/audiotube/shared-playlists', {
+        method: 'PUT',
+        body: JSON.stringify({ playlists: sharedPlaylists }),
+      }),
+    ]);
   }
 
   async getGroups() {
@@ -102,8 +131,22 @@ export class HAUserDataStorageAdapter {
     await setUserData(KEY_GROUPS, groups);
   }
 
-  async getQueue()             { return this.#local.getQueue(); }
-  async saveQueue(items)       { return this.#local.saveQueue(items); }
+  async getQueue() {
+    const state = await apiJson('/api/audiotube/shared-state');
+    this.#lastSharedState = state;
+    return state.queue || [];
+  }
+
+  getSharedState() { return this.#lastSharedState; }
+
+  async saveQueue() {}
+
+  async commandQueue(command, data = {}) {
+    return apiJson('/api/audiotube/shared-state', {
+      method: 'POST',
+      body: JSON.stringify({ command, baseUrl: location.origin, ...data }),
+    });
+  }
 
   async getSettings()          { return this.#local.getSettings(); }
   async saveSettings(settings) { return this.#local.saveSettings(settings); }
@@ -114,10 +157,51 @@ export class HAUserDataStorageAdapter {
   subscribeFavorites(callback) { return subscribeUserData(KEY_FAVORITES, callback); }
 
   /** @param {(playlists: object[]) => void} callback @returns {Promise<Function>} unsubscribe */
-  subscribePlaylists(callback) { return subscribeUserData(KEY_PLAYLISTS, callback); }
+  async subscribePlaylists(callback) {
+    let privatePlaylists = [];
+    let sharedPlaylists = [];
+    const emit = () => callback([
+      ...privatePlaylists.map(playlist => ({ ...playlist, visibility: 'private' })),
+      ...sharedPlaylists.map(playlist => ({ ...playlist, visibility: 'shared' })),
+    ]);
+    const unsubscribePrivate = await subscribeUserData(KEY_PLAYLISTS, value => {
+      privatePlaylists = value;
+      emit();
+    });
+    const refreshShared = async () => {
+      try {
+        ({ playlists: sharedPlaylists = [] } = await apiJson('/api/audiotube/shared-playlists'));
+        emit();
+      } catch (err) {
+        console.warn('[HAUserDataStorageAdapter] Shared playlist refresh failed:', err.message);
+      }
+    };
+    await refreshShared();
+    const timer = setInterval(refreshShared, 2000);
+    return () => { unsubscribePrivate(); clearInterval(timer); };
+  }
 
   /** @param {(groups: object[]) => void} callback @returns {Promise<Function>} unsubscribe */
   subscribeGroups(callback) { return subscribeUserData(KEY_GROUPS, callback); }
+
+  subscribeQueue(callback) {
+    let revision = -1;
+    const refresh = async () => {
+      try {
+        const state = await apiJson('/api/audiotube/shared-state');
+        this.#lastSharedState = state;
+        if (state.revision !== revision) {
+          revision = state.revision;
+          callback(state);
+        }
+      } catch (err) {
+        console.warn('[HAUserDataStorageAdapter] Shared queue refresh failed:', err.message);
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 1000);
+    return () => clearInterval(timer);
+  }
 
   // ─── Extra ─────────────────────────────────────────────────────────────────
 

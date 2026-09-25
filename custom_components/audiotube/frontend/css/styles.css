@@ -758,6 +758,15 @@ input, button, select { outline-offset: 2px; }
   font-size: .9rem;
   box-sizing: border-box;
 }
+.dialog-field { display: grid; gap: 6px; font-weight: 600; }
+.visibility-options { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; border: 0; }
+.visibility-options legend { margin-bottom: 8px; font-weight: 600; }
+.visibility-options label { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--clr-border); border-radius: 6px; cursor: pointer; }
+.visibility-options input { margin-top: 3px; accent-color: var(--clr-accent); }
+.visibility-options span { display: grid; gap: 2px; }
+.visibility-options small { color: var(--clr-text-sub); font-weight: 400; }
+.playlist-visibility { padding: 2px 6px; border: 1px solid var(--clr-border); border-radius: 4px; color: var(--clr-text-sub); font-size: .72rem; }
+.playlist-visibility.shared { border-color: var(--clr-accent); color: var(--clr-accent); }
 
 .speaker-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow-y: auto; }
 .speaker-item {

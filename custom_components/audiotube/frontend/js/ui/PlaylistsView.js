@@ -2,10 +2,10 @@
  * Playlists view — create, rename, delete, play playlists.
  */
 import { appState } from '../../src/core/state/AppState.js?v=20260924-1';
-import { t }        from '../../src/core/i18n/i18n.js?v=20260924-3';
+import { t }        from '../../src/core/i18n/i18n.js?v=20260925-1';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js?v=20260924-1';
-import { showPrompt, showConfirm } from './dialogs.js?v=20260923-2';
+import { showPrompt, showConfirm, showPlaylistPrompt } from './dialogs.js?v=20260925-1';
 import { enableDragReorder } from './dragReorder.js';
 
 export function renderPlaylists(container, ctrl) {
@@ -20,8 +20,8 @@ export function renderPlaylists(container, ctrl) {
   `;
 
   container.querySelector('#createPlaylistBtn').addEventListener('click', async () => {
-    const name = await showPrompt(t('playlistName'));
-    if (name) ctrl.createPlaylist(name);
+    const result = await showPlaylistPrompt();
+    if (result) ctrl.createPlaylist(result.name, result.visibility);
   });
 
   const content = container.querySelector('#playlistsContent');
@@ -37,6 +37,7 @@ export function renderPlaylists(container, ctrl) {
         <div class="playlist-card-header">
           <div class="playlist-meta">
             <h3 class="playlist-name">${escHtml(pl.name)}</h3>
+            <span class="playlist-visibility ${pl.visibility === 'shared' ? 'shared' : ''}">${pl.visibility === 'shared' ? t('playlistShared') : t('playlistPrivate')}</span>
             <span class="playlist-count">${t('trackCount', pl.tracks.length)}</span>
           </div>
           <div class="playlist-actions">

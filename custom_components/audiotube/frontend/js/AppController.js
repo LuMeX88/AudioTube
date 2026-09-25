@@ -5,8 +5,8 @@
  */
 
 import { appState } from '../src/core/state/AppState.js?v=20260924-1';
-import { createQueueItem, createPlaylist, createGroup as createSpeakerGroup, trackFromSearchResult } from '../src/core/models.js?v=20260924-1';
-import { t } from '../src/core/i18n/i18n.js?v=20260924-3';
+import { createQueueItem, createPlaylist, createGroup as createSpeakerGroup, trackFromSearchResult } from '../src/core/models.js?v=20260925-1';
+import { t } from '../src/core/i18n/i18n.js?v=20260925-1';
 import { log } from '../src/core/log.js';
 import { stringify as toYaml, parse as fromYaml } from '../src/core/yaml.js?v=20260923-1';
 
@@ -31,11 +31,13 @@ export class AppController {
   #search;      // SearchClient
   #storage;     // StorageAdapter
   #navigating = false; // guards next()/previous() against overlapping calls (fast double-clicks, auto-advance)
+  #sharedQueue = false;
 
   constructor({ playbackAdapter, searchClient, storageAdapter }) {
     this.#playback = playbackAdapter;
     this.#search   = searchClient;
     this.#storage  = storageAdapter;
+    this.#sharedQueue = typeof storageAdapter.commandQueue === 'function';
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────
@@ -51,6 +53,7 @@ export class AppController {
     ]);
 
     appState.set({ favorites, playlists, groups, queue });
+    this.#applySharedState(this.#storage.getSharedState?.());
     applyTheme(settings?.theme);
 
     // Apply settings to search client
@@ -64,6 +67,7 @@ export class AppController {
     this.#storage.subscribeFavorites?.(favs => appState.set({ favorites: favs }));
     this.#storage.subscribePlaylists?.(pls  => appState.set({ playlists: pls }));
     this.#storage.subscribeGroups?.(groups  => appState.set({ groups }));
+    this.#storage.subscribeQueue?.(state => this.#applySharedState(state));
 
     // Do not block the whole app on HA/Sonos discovery. The UI remains usable
     // while the iframe websocket authenticates or reports an error.
@@ -80,16 +84,24 @@ export class AppController {
     // Restore the previously used target (a plain speaker or a `group:<id>`
     // saved target), falling back to the first available speaker.
     const targets = this.getSelectableTargets();
-    const target = targets.find(s => s.id === settings?.selectedSpeakerId && s.isAvailable)
-      ?? targets.find(s => s.type === 'speaker' && s.isAvailable);
-    if (target) {
-      await this.selectSpeaker(target.id);
+    const sharedState = this.#storage.getSharedState?.();
+    if (sharedState?.selectedSpeakerId && sharedState.targetIds?.length) {
+      await this.#playback.selectSpeaker(sharedState.selectedSpeakerId, sharedState.targetIds);
+      appState.set({ selectedSpeakerId: sharedState.selectedSpeakerId });
+    } else {
+      const target = targets.find(s => s.id === settings?.selectedSpeakerId && s.isAvailable)
+        ?? targets.find(s => s.type === 'speaker' && s.isAvailable);
+      if (target) await this.selectSpeaker(target.id);
     }
 
     // Listen to playback state from adapter
     this.#playback.onStateChange(ps => {
-      appState.merge('playback', ps);
-      if (ps._event === 'ended') this.#onTrackEnded();
+      if (this.#sharedQueue) {
+        appState.merge('playback', { volume: ps.volume });
+      } else {
+        appState.merge('playback', ps);
+        if (ps._event === 'ended') this.#onTrackEnded();
+      }
     });
 
     // Auto-save queue on changes
@@ -156,12 +168,21 @@ export class AppController {
 
     // Replace queue with this single track and play it
     const item = createQueueItem(track);
+    if (this.#sharedQueue) {
+      await this.#queueCommand('play_now', { item });
+      return;
+    }
     appState.set({ queue: [item], queueIndex: 0 });
     await this.#playTrack(track);
   }
 
   async addToQueue(searchResult) {
     const track = trackFromSearchResult(searchResult);
+    if (this.#sharedQueue) {
+      await this.#queueCommand('add', { item: createQueueItem(track) });
+      appState.notify(`„${track.title}" zur Warteschlange hinzugefügt.`, 'info');
+      return;
+    }
     const items = [...appState.get('queue'), createQueueItem(track)];
     appState.set({ queue: items });
     appState.notify(`„${track.title}" zur Warteschlange hinzugefügt.`, 'info');
@@ -175,6 +196,11 @@ export class AppController {
 
   async playNext(searchResult) {
     const track = trackFromSearchResult(searchResult);
+    if (this.#sharedQueue) {
+      await this.#queueCommand('play_next', { item: createQueueItem(track) });
+      appState.notify(`„${track.title}" als nächstes eingereiht.`, 'info');
+      return;
+    }
     const queue = [...appState.get('queue')];
     const idx   = appState.get('queueIndex');
     queue.splice(idx + 1, 0, createQueueItem(track));
@@ -183,6 +209,10 @@ export class AppController {
   }
 
   async skipToQueueItem(queueId) {
+    if (this.#sharedQueue) {
+      await this.#queueCommand('skip', { queueId });
+      return;
+    }
     const queue = appState.get('queue');
     const idx   = queue.findIndex(i => i.queueId === queueId);
     if (idx === -1) return;
@@ -194,6 +224,10 @@ export class AppController {
     if (this.#navigating) return;
     this.#navigating = true;
     try {
+      if (this.#sharedQueue) {
+        await this.#queueCommand('next');
+        return;
+      }
       if (!appState.hasNext) {
         await this.#playback.stop();
         return;
@@ -210,6 +244,10 @@ export class AppController {
     if (this.#navigating) return;
     this.#navigating = true;
     try {
+      if (this.#sharedQueue) {
+        await this.#queueCommand('previous');
+        return;
+      }
       const pos = appState.get('playback').positionSec;
       if (pos > 3) {
         // Restart current track if we're past 3 seconds
@@ -225,9 +263,9 @@ export class AppController {
     }
   }
 
-  async pause()  { await this.#playback.pause(); }
-  async resume() { await this.#playback.resume(); }
-  async stop()   { await this.#playback.stop(); }
+  async pause()  { this.#sharedQueue ? await this.#queueCommand('pause') : await this.#playback.pause(); }
+  async resume() { this.#sharedQueue ? await this.#queueCommand('resume') : await this.#playback.resume(); }
+  async stop()   { this.#sharedQueue ? await this.#queueCommand('stop') : await this.#playback.stop(); }
 
   async setVolume(level) { await this.#playback.setVolume(level); }
 
@@ -237,7 +275,11 @@ export class AppController {
   }
 
   async seek(positionSec) {
-    if (this.#playback.seek) await this.#playback.seek(positionSec);
+    if (this.#sharedQueue) {
+      await this.#queueCommand('seek', { positionSec });
+    } else if (this.#playback.seek) {
+      await this.#playback.seek(positionSec);
+    }
   }
 
   async selectSpeaker(id) {
@@ -245,6 +287,12 @@ export class AppController {
       const memberIds = this.#resolveGroupMemberIds(id);
       await this.#playback.selectSpeaker(id, memberIds);
       appState.set({ selectedSpeakerId: id });
+      if (this.#sharedQueue) {
+        await this.#queueCommand('set_target', {
+          targetId: id,
+          targetIds: memberIds || [id],
+        });
+      }
       const settings = await this.#storage.getSettings();
       await this.#storage.saveSettings({ ...settings, selectedSpeakerId: id });
     } catch (err) {
@@ -329,19 +377,31 @@ export class AppController {
 
   // ─── Queue management ─────────────────────────────────────────────────────
 
-  removeFromQueue(queueId) {
+  async removeFromQueue(queueId) {
+    if (this.#sharedQueue) {
+      await this.#queueCommand('remove', { queueId });
+      return;
+    }
     const queue = appState.get('queue').filter(i => i.queueId !== queueId);
     const idx   = appState.get('queueIndex');
     appState.set({ queue, queueIndex: Math.min(idx, queue.length - 1) });
   }
 
-  clearQueue() {
+  async clearQueue() {
+    if (this.#sharedQueue) {
+      await this.#queueCommand('clear');
+      return;
+    }
     this.#playback.stop();
     appState.set({ queue: [], queueIndex: -1 });
   }
 
   /** Reorder the queue to match the given queueIds, keeping the current track current. */
-  reorderQueue(queueIds) {
+  async reorderQueue(queueIds) {
+    if (this.#sharedQueue) {
+      await this.#queueCommand('reorder', { queueIds });
+      return;
+    }
     const queue = appState.get('queue');
     const playingId = queue[appState.get('queueIndex')]?.queueId;
 
@@ -380,8 +440,8 @@ export class AppController {
 
   // ─── Playlists ────────────────────────────────────────────────────────────
 
-  createPlaylist(name) {
-    const pl = createPlaylist(name.trim());
+  createPlaylist(name, visibility = 'private') {
+    const pl = createPlaylist(name.trim(), visibility);
     const updated = [...appState.get('playlists'), pl];
     appState.set({ playlists: updated });
     this.#storage.savePlaylists(updated);
@@ -438,13 +498,24 @@ export class AppController {
     const pl = appState.get('playlists').find(p => p.id === playlistId);
     if (!pl || !pl.tracks.length) return;
     const items = pl.tracks.map(createQueueItem);
+    if (this.#sharedQueue) {
+      await this.#queueCommand('replace_and_play', { items });
+      return;
+    }
     appState.set({ queue: items, queueIndex: 0 });
     await this.#playTrack(pl.tracks[0]);
   }
 
-  addPlaylistToQueue(playlistId) {
+  async addPlaylistToQueue(playlistId) {
     const pl = appState.get('playlists').find(p => p.id === playlistId);
     if (!pl || !pl.tracks.length) return;
+    if (this.#sharedQueue) {
+      for (const track of pl.tracks) {
+        await this.#queueCommand('add', { item: createQueueItem(track) });
+      }
+      appState.notify(`Playlist „${pl.name}" zur Warteschlange hinzugefügt.`, 'info');
+      return;
+    }
     const items = [...appState.get('queue'), ...pl.tracks.map(createQueueItem)];
     appState.set({ queue: items });
     appState.notify(`Playlist „${pl.name}" zur Warteschlange hinzugefügt.`, 'info');
@@ -522,6 +593,7 @@ export class AppController {
   }
 
   #onTrackEnded() {
+    if (this.#sharedQueue) return;
     const repeat = appState.get('playback').repeat;
     if (repeat === 'one') {
       const track = appState.currentQueueItem?.track;
@@ -544,7 +616,32 @@ export class AppController {
       return;
     }
     const items = videos.map(v => createQueueItem(trackFromSearchResult(v)));
+    if (this.#sharedQueue) {
+      await this.#queueCommand('replace_and_play', { items });
+      return;
+    }
     appState.set({ queue: items, queueIndex: 0 });
     await this.#playTrack(items[0].track);
+  }
+
+  #applySharedState(state) {
+    if (!state) return;
+    appState.set({
+      queue: state.queue || [],
+      queueIndex: Number.isInteger(state.queueIndex) ? state.queueIndex : -1,
+      selectedSpeakerId: state.selectedSpeakerId || appState.get('selectedSpeakerId'),
+    });
+    if (state.playback) appState.merge('playback', state.playback);
+  }
+
+  async #queueCommand(command, data = {}) {
+    try {
+      const state = await this.#storage.commandQueue(command, data);
+      this.#applySharedState(state);
+      return state;
+    } catch (err) {
+      appState.notify(err.message || 'Warteschlange konnte nicht aktualisiert werden.', 'error');
+      throw err;
+    }
   }
 }

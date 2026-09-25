@@ -3,13 +3,13 @@
  * @module apps/local/js/ui/App
  */
 import { appState }    from '../../src/core/state/AppState.js?v=20260924-1';
-import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260924-3';
+import { t, getLocale, setLocale, availableLocales, onLocaleChange } from '../../src/core/i18n/i18n.js?v=20260925-1';
 import { icon }        from './icons.js?v=20260924-1';
-import { showConfirm, showPrompt } from './dialogs.js?v=20260924-1';
+import { showConfirm, showPrompt } from './dialogs.js?v=20260925-1';
 import { renderSearch }   from './SearchView.js?v=20260924-1';
 import { renderQueue }    from './QueueView.js?v=20260924-1';
 import { renderFavorites} from './FavoritesView.js?v=20260924-1';
-import { renderPlaylists} from './PlaylistsView.js?v=20260924-1';
+import { renderPlaylists} from './PlaylistsView.js?v=20260925-1';
 import { renderPlayerBar} from './PlayerBar.js?v=20260924-7';
 import { renderNotification } from './Notification.js';
 

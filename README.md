@@ -12,7 +12,7 @@ instance, streaming straight to your `media_player` entities (Sonos and more).
 
 [![HACS Custom Repository](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=home-assistant&logoColor=white)](https://hacs.xyz/)
 &nbsp;
-![Version](https://img.shields.io/badge/version-0.4.0-success.svg)
+![Version](https://img.shields.io/badge/version-0.5.0-success.svg)
 &nbsp;
 ![Local & private](https://img.shields.io/badge/100%25-local%20%26%20private-success.svg)
 
@@ -56,13 +56,14 @@ Speakers fetch audio directly from there — no extra host or port to open up.
 ## ✨ Features
 
 - **🔍 Search** – Find tracks and playlists on YouTube, or paste a URL directly.
-- **📃 Queue** – Build a queue, reorder it by drag & drop, and it **auto-advances**
-  track to track. Everything in the queue is **downloaded ahead of time** in the
-  background, so the next track starts instantly instead of waiting on a download.
-- **❤️ Favorites & 📁 Playlists** – Save tracks, build playlists, and everything
-  **syncs live across every device** logged into the same Home Assistant account.
-  Tracks saved in a playlist are **kept on disk permanently** — they're exempt
-  from the cache cleanup, so your playlists always start instantly.
+- **📃 Shared queue** – Every Home Assistant user sees and edits the same queue.
+  Playback and auto-advance run in the integration backend, so the queue keeps
+  playing after every browser, website, or Companion App has been closed.
+  Queued tracks are downloaded ahead of time so the next track starts instantly.
+- **❤️ Favorites & 📁 Private/shared playlists** – Favorites and private playlists
+  sync across every device logged into the same Home Assistant account. A playlist
+  can also be shared so every Home Assistant user can see, edit, queue, and play it.
+  Playlist tracks are kept on disk permanently, so saved playlists start instantly.
 - **🔊 Speaker groups** – Combine several `media_player` entities into a group
   (a speaker can belong to more than one group) and pick the group as a single
   playback target — every member gets the same play/pause/volume commands.

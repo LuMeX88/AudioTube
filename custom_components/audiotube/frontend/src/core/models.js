@@ -45,6 +45,7 @@
  * @property {string}   id        - Local UUID
  * @property {string}   name
  * @property {Track[]}  tracks
+ * @property {'private'|'shared'} visibility
  * @property {number}   createdAt - unix ms
  * @property {number}   updatedAt - unix ms
  */
@@ -93,9 +94,9 @@ export function createQueueItem(track) {
   return { queueId: generateId(), track };
 }
 
-export function createPlaylist(name) {
+export function createPlaylist(name, visibility = 'private') {
   const now = Date.now();
-  return { id: generateId(), name, tracks: [], createdAt: now, updatedAt: now };
+  return { id: generateId(), name, tracks: [], visibility, createdAt: now, updatedAt: now };
 }
 
 /**

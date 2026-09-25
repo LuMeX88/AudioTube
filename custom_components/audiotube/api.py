@@ -10,8 +10,10 @@ from aiohttp import web
 
 from homeassistant.components.http import KEY_HASS, HomeAssistantView
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 
 from .cache import async_set_pinned, cache_dir
+from .coordinator import AudioTubeCoordinator
 from .ytdlp_client import (
     async_ensure_audio_file,
     async_ensure_waveform,
@@ -29,6 +31,55 @@ _CONTENT_TYPES = {
     ".webm": "audio/webm",
     ".m4a": "audio/mp4",
 }
+
+
+class AudioTubeSharedStateView(HomeAssistantView):
+    """Expose the integration-owned queue and playback session."""
+
+    url = "/api/audiotube/shared-state"
+    name = "api:audiotube:shared-state"
+
+    def __init__(self, coordinator: AudioTubeCoordinator) -> None:
+        """Store the shared coordinator."""
+        self._coordinator = coordinator
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Return the current global queue and playback state."""
+        return self.json(self._coordinator.snapshot())
+
+    async def post(self, request: web.Request) -> web.Response:
+        """Apply one atomic queue or playback command."""
+        body = await request.json()
+        command = str(body.pop("command", ""))
+        try:
+            state = await self._coordinator.async_command(command, body)
+        except (HomeAssistantError, ValueError, TypeError) as err:
+            return self.json({"error": str(err)}, status_code=400)
+        return self.json(state)
+
+
+class AudioTubeSharedPlaylistsView(HomeAssistantView):
+    """Expose playlists shared across all authenticated HA users."""
+
+    url = "/api/audiotube/shared-playlists"
+    name = "api:audiotube:shared-playlists"
+
+    def __init__(self, coordinator: AudioTubeCoordinator) -> None:
+        """Store the shared coordinator."""
+        self._coordinator = coordinator
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Return shared playlists."""
+        return self.json({"playlists": self._coordinator.shared_playlists()})
+
+    async def put(self, request: web.Request) -> web.Response:
+        """Replace shared playlists after an authenticated user edit."""
+        body = await request.json()
+        try:
+            await self._coordinator.async_set_shared_playlists(body.get("playlists"))
+        except HomeAssistantError as err:
+            return self.json({"error": str(err)}, status_code=400)
+        return self.json({"playlists": self._coordinator.shared_playlists()})
 
 
 class AudioTubeIndexView(HomeAssistantView):

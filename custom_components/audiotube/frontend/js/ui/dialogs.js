@@ -7,7 +7,7 @@
  * playlist" and "clear queue". These helpers render an in-app modal
  * instead and resolve a Promise with the result.
  */
-import { t } from '../../src/core/i18n/i18n.js?v=20260924-3';
+import { t } from '../../src/core/i18n/i18n.js?v=20260925-1';
 
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -73,4 +73,56 @@ export async function showConfirm(message) {
     confirmLabel: t('confirm'),
   });
   return result === true;
+}
+
+/** Ask for a playlist name and whether it is private or shared. */
+export function showPlaylistPrompt(defaultName = '') {
+  return new Promise(resolve => {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML = `
+      <div class="modal-box">
+        <h2 class="modal-title">${escHtml(t('createPlaylist'))}</h2>
+        <label class="dialog-field">
+          <span>${escHtml(t('playlistName'))}</span>
+          <input type="text" class="dialog-input" value="${escHtml(defaultName)}" />
+        </label>
+        <fieldset class="visibility-options">
+          <legend>${escHtml(t('playlistVisibility'))}</legend>
+          <label>
+            <input type="radio" name="playlistVisibility" value="private" checked />
+            <span><strong>${escHtml(t('playlistPrivate'))}</strong><small>${escHtml(t('playlistPrivateHint'))}</small></span>
+          </label>
+          <label>
+            <input type="radio" name="playlistVisibility" value="shared" />
+            <span><strong>${escHtml(t('playlistShared'))}</strong><small>${escHtml(t('playlistSharedHint'))}</small></span>
+          </label>
+        </fieldset>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="dialogCancel">${escHtml(t('cancel'))}</button>
+          <button class="btn-primary" id="dialogOk">${escHtml(t('createPlaylist'))}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    const input = modal.querySelector('.dialog-input');
+    input.focus();
+
+    const finish = result => { modal.remove(); resolve(result); };
+    const submit = () => {
+      const name = input.value.trim();
+      if (!name) return;
+      const visibility = modal.querySelector('input[name="playlistVisibility"]:checked').value;
+      finish({ name, visibility });
+    };
+    modal.querySelector('#dialogCancel').addEventListener('click', () => finish(null));
+    modal.querySelector('#dialogOk').addEventListener('click', submit);
+    modal.addEventListener('click', event => { if (event.target === modal) finish(null); });
+    modal.addEventListener('keydown', event => {
+      if (event.key === 'Escape') finish(null);
+      if (event.key === 'Enter') submit();
+    });
+  });
 }

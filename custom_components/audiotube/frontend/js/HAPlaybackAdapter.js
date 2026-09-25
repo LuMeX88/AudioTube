@@ -3,7 +3,7 @@
  * It reads media_player states and sends playback commands through the HA
  * websocket API using the existing frontend session.
  */
-import { defaultPlaybackState } from '../src/core/models.js?v=20260924-1';
+import { defaultPlaybackState } from '../src/core/models.js?v=20260925-1';
 import { getAccessToken } from './haAuth.js?v=20260923-1';
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/websocket`;

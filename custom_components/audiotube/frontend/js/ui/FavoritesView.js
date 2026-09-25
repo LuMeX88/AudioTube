@@ -2,10 +2,10 @@
  * Favorites view
  */
 import { appState } from '../../src/core/state/AppState.js?v=20260924-1';
-import { t }        from '../../src/core/i18n/i18n.js?v=20260924-3';
+import { t }        from '../../src/core/i18n/i18n.js?v=20260925-1';
 import { formatDuration } from './helpers.js';
 import { icon }     from './icons.js?v=20260924-1';
-import { openPlaylistPicker } from './PlaylistPicker.js';
+import { openPlaylistPicker } from './PlaylistPicker.js?v=20260925-1';
 
 export function renderFavorites(container, ctrl) {
   container.innerHTML = `

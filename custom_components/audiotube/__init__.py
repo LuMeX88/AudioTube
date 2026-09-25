@@ -20,10 +20,13 @@ from .api import (
     AudioTubePrepareView,
     AudioTubeResolveView,
     AudioTubeSearchView,
+    AudioTubeSharedPlaylistsView,
+    AudioTubeSharedStateView,
     AudioTubeVersionView,
     AudioTubeWaveformView,
 )
 from .cache import async_schedule_purge
+from .coordinator import AudioTubeCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +54,8 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry) -> bool:
     """Unload the AudioTube config entry."""
+    if coordinator := hass.data.get(DOMAIN, {}).get("coordinator"):
+        await coordinator.async_shutdown()
     return True
 
 
@@ -76,6 +81,10 @@ async def _async_register(hass: HomeAssistant) -> None:
 
     await hass.async_add_executor_job(_check_yt_dlp_import)
 
+    coordinator = AudioTubeCoordinator(hass)
+    await coordinator.async_load()
+    data["coordinator"] = coordinator
+
     frontend_path = Path(__file__).parent / "frontend"
     # index.html is registered as its own no-cache view BEFORE the static
     # path below, so this more specific route wins over the static handler
@@ -95,6 +104,8 @@ async def _async_register(hass: HomeAssistant) -> None:
     hass.http.register_view(AudioTubeAudioView())
     hass.http.register_view(AudioTubeWaveformView())
     hass.http.register_view(AudioTubeVersionView(Path(__file__).parent / "manifest.json"))
+    hass.http.register_view(AudioTubeSharedStateView(coordinator))
+    hass.http.register_view(AudioTubeSharedPlaylistsView(coordinator))
 
     async def async_play_media(call) -> None:
         entity_ids = call.data["entity_id"]
